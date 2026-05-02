@@ -1,0 +1,4 @@
+Untuk menjalankan app, install Flutter terlebih dahulu:
+1. Download dari https://flutter.dev
+2. Tambahkan ke PATH
+3. Run: flutter pub get lalu flutter run
