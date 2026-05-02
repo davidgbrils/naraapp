@@ -36,7 +36,8 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
   }
 
   void _saveReminder() {
-    if (_titleController.text.isEmpty) {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Mohon isi judul reminder', style: AppTheme.body)),
       );
@@ -45,7 +46,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
 
     final provider = context.read<AppProvider>();
     provider.addReminder({
-      'title': _titleController.text,
+      'title': title,
       'type': _selectedType,
       'date': _selectedTime,
       'status': 'menunggu',

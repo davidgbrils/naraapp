@@ -51,48 +51,64 @@ class ReminderListScreen extends StatelessWidget {
             itemCount: provider.reminders.length,
             itemBuilder: (context, index) {
               final reminder = provider.reminders[index];
-              return GlassContainer(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: AppTheme.tertiary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+              final title = reminder['title'] as String? ?? '-';
+              final date = reminder['date'] as String? ?? '-';
+              final isDone = reminder['status'] == 'selesai';
+              return Dismissible(
+                key: ValueKey('${reminder['title']}-$index'),
+                direction: DismissDirection.endToStart,
+                onDismissed: (_) => provider.removeReminderAt(index),
+                background: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  alignment: Alignment.centerRight,
+                  decoration: BoxDecoration(
+                    color: AppTheme.danger.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger),
+                ),
+                child: GlassContainer(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: AppTheme.tertiary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.alarm_rounded, color: AppTheme.tertiary),
                       ),
-                      child: Icon(Icons.alarm_rounded, color: AppTheme.tertiary),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(reminder['title'], style: AppTheme.label),
-                          const SizedBox(height: 4),
-                          Text(reminder['date'], style: AppTheme.body.copyWith(color: AppTheme.outline, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: reminder['status'] == 'menunggu' 
-                          ? AppTheme.warning.withValues(alpha: 0.2)
-                          : AppTheme.success.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        reminder['status'] == 'menunggu' ? 'Menunggu' : 'Selesai',
-                        style: AppTheme.label.copyWith(
-                          color: reminder['status'] == 'menunggu' ? AppTheme.warning : AppTheme.success,
-                          fontSize: 11,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: AppTheme.label.copyWith(
+                                decoration: isDone ? TextDecoration.lineThrough : null,
+                                color: isDone ? AppTheme.outline : AppTheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              date,
+                              style: AppTheme.body.copyWith(color: AppTheme.outline, fontSize: 13),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      Checkbox(
+                        value: isDone,
+                        onChanged: (_) => provider.toggleReminderStatus(index),
+                        activeColor: AppTheme.success,
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

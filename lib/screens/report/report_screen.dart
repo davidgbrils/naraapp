@@ -1,10 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
 
-class ReportScreen extends StatelessWidget {
+enum _ReportPeriod { week, month, year }
+
+class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
+
+  @override
+  State<ReportScreen> createState() => _ReportScreenState();
+}
+
+class _ReportScreenState extends State<ReportScreen> {
+  _ReportPeriod _selectedPeriod = _ReportPeriod.week;
+
+  bool _isInSelectedPeriod(DateTime date) {
+    final now = DateTime.now();
+
+    switch (_selectedPeriod) {
+      case _ReportPeriod.week:
+        return date.isAfter(now.subtract(const Duration(days: 7)));
+      case _ReportPeriod.month:
+        return date.year == now.year && date.month == now.month;
+      case _ReportPeriod.year:
+        return date.year == now.year;
+    }
+  }
+
+  DateTime _extractDate(Map<String, dynamic> item) {
+    final createdAt = item['createdAt'];
+    if (createdAt is DateTime) return createdAt;
+    return DateTime.now();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,125 +54,145 @@ class ReportScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Period selector
-            GlassContainer(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  _PeriodChip(label: 'Minggu', isSelected: true),
-                  const SizedBox(width: 8),
-                  _PeriodChip(label: 'Bulan', isSelected: false),
-                  const SizedBox(width: 8),
-                  _PeriodChip(label: 'Tahun', isSelected: false),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+      body: Consumer<AppProvider>(
+        builder: (context, provider, _) {
+          final filteredExpenses = provider.expenses.where((e) => _isInSelectedPeriod(_extractDate(e))).toList();
+          final filteredIncomes = provider.incomes.where((i) => _isInSelectedPeriod(_extractDate(i))).toList();
+          final filteredDebts = provider.debts.where((d) => _isInSelectedPeriod(_extractDate(d))).toList();
 
-            // Summary cards
-            Row(
+          final totalExpense = filteredExpenses.fold<int>(0, (sum, e) => sum + ((e['amount'] as num?)?.round() ?? 0));
+          final totalIncome = filteredIncomes.fold<int>(0, (sum, i) => sum + ((i['amount'] as num?)?.round() ?? 0));
+          final balance = totalIncome - totalExpense;
+
+          final categoryTotals = <String, int>{};
+          for (final expense in filteredExpenses) {
+            final category = (expense['category'] as String?) ?? 'Lainnya';
+            final amount = ((expense['amount'] as num?)?.round() ?? 0);
+            categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
+          }
+
+          final categoryEntries = categoryTotals.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+
+          final totalUtang = filteredDebts
+              .where((d) => d['type'] == 'utang')
+              .fold<int>(0, (sum, d) => sum + ((d['amount'] as num?)?.round() ?? 0));
+          final totalPiutang = filteredDebts
+              .where((d) => d['type'] == 'piutang')
+              .fold<int>(0, (sum, d) => sum + ((d['amount'] as num?)?.round() ?? 0));
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _SummaryCard(
-                    title: 'Pemasukan',
-                    amount: 'Rp 0',
-                    color: AppTheme.success,
-                    icon: Icons.arrow_downward_rounded,
+                GlassContainer(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      _PeriodChip(
+                        label: 'Minggu',
+                        isSelected: _selectedPeriod == _ReportPeriod.week,
+                        onTap: () => setState(() => _selectedPeriod = _ReportPeriod.week),
+                      ),
+                      const SizedBox(width: 8),
+                      _PeriodChip(
+                        label: 'Bulan',
+                        isSelected: _selectedPeriod == _ReportPeriod.month,
+                        onTap: () => setState(() => _selectedPeriod = _ReportPeriod.month),
+                      ),
+                      const SizedBox(width: 8),
+                      _PeriodChip(
+                        label: 'Tahun',
+                        isSelected: _selectedPeriod == _ReportPeriod.year,
+                        onTap: () => setState(() => _selectedPeriod = _ReportPeriod.year),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SummaryCard(
-                    title: 'Pengeluaran',
-                    amount: 'Rp 85.000',
-                    color: AppTheme.secondary,
-                    icon: Icons.arrow_upward_rounded,
-                  ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryCard(
+                        title: 'Pemasukan',
+                        amount: formatRupiah(totalIncome),
+                        color: AppTheme.success,
+                        icon: Icons.arrow_downward_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SummaryCard(
+                        title: 'Pengeluaran',
+                        amount: formatRupiah(totalExpense),
+                        color: AppTheme.secondary,
+                        icon: Icons.arrow_upward_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _SummaryCard(
+                  title: 'Saldo',
+                  amount: formatRupiah(balance),
+                  color: balance < 0 ? AppTheme.danger : AppTheme.success,
+                  icon: Icons.account_balance_wallet_rounded,
+                  fullWidth: true,
+                ),
+                const SizedBox(height: 24),
+                Text('Berdasarkan Kategori', style: AppTheme.h3),
+                const SizedBox(height: 16),
+                if (categoryEntries.isEmpty)
+                  GlassContainer(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(
+                        'Belum ada pengeluaran pada periode ini',
+                        style: AppTheme.body.copyWith(color: AppTheme.outline),
+                      ),
+                    ),
+                  )
+                else
+                  ...categoryEntries.map((entry) {
+                    final percentage = totalExpense == 0 ? 0 : ((entry.value / totalExpense) * 100).round();
+                    final colors = [
+                      AppTheme.secondary,
+                      AppTheme.primaryContainer,
+                      AppTheme.tertiary,
+                      AppTheme.success,
+                      AppTheme.warning,
+                    ];
+                    final color = colors[categoryEntries.indexOf(entry) % colors.length];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _CategoryItem(
+                        category: entry.key,
+                        amount: entry.value,
+                        percentage: percentage,
+                        color: color,
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 24),
+                Text('Ringkasan Utang/Piutang', style: AppTheme.h3),
+                const SizedBox(height: 16),
+                _DebtSummaryItem(
+                  title: 'Total Utang',
+                  amount: totalUtang,
+                  color: AppTheme.danger,
+                ),
+                const SizedBox(height: 12),
+                _DebtSummaryItem(
+                  title: 'Total Piutang',
+                  amount: totalPiutang,
+                  color: AppTheme.success,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _SummaryCard(
-              title: 'Saldo',
-              amount: '-Rp 85.000',
-              color: AppTheme.danger,
-              icon: Icons.account_balance_wallet_rounded,
-              fullWidth: true,
-            ),
-            const SizedBox(height: 24),
-
-            // Category breakdown
-            Text('Berdasarkan Kategori', style: AppTheme.h3),
-            const SizedBox(height: 16),
-            
-            _CategoryItem(
-              category: 'Makan',
-              amount: 45000,
-              percentage: 53,
-              color: AppTheme.secondary,
-            ),
-            const SizedBox(height: 12),
-            _CategoryItem(
-              category: 'Transport',
-              amount: 40000,
-              percentage: 47,
-              color: AppTheme.primaryContainer,
-            ),
-
-            const SizedBox(height: 24),
-
-            // Debt summary
-            Text('Ringkasan Utang/Piutang', style: AppTheme.h3),
-            const SizedBox(height: 16),
-            Consumer<AppProvider>(
-              builder: (context, provider, _) {
-                final totalUtang = provider.debts.where((d) => d['type'] == 'utang').fold(0, (sum, d) => sum + (d['amount'] as int));
-                final totalPiutang = provider.debts.where((d) => d['type'] == 'piutang').fold(0, (sum, d) => sum + (d['amount'] as int));
-                
-                return Column(
-                  children: [
-                    _DebtSummaryItem(
-                      title: 'Total Utang',
-                      amount: totalUtang,
-                      color: AppTheme.danger,
-                    ),
-                    const SizedBox(height: 12),
-                    _DebtSummaryItem(
-                      title: 'Total Piutang',
-                      amount: totalPiutang,
-                      color: AppTheme.success,
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 24),
-
-            // Export button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.download_rounded, size: 20),
-                label: Text('Export Laporan', style: AppTheme.label),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryContainer.withValues(alpha: 0.2),
-                  foregroundColor: AppTheme.primaryContainer,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -152,23 +201,32 @@ class ReportScreen extends StatelessWidget {
 class _PeriodChip extends StatelessWidget {
   final String label;
   final bool isSelected;
+  final VoidCallback onTap;
 
-  const _PeriodChip({required this.label, required this.isSelected});
+  const _PeriodChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryContainer : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: AppTheme.label.copyWith(
-              color: isSelected ? AppTheme.onPrimaryContainer : AppTheme.outline,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AppTheme.label.copyWith(
+                color: isSelected ? AppTheme.onPrimaryContainer : AppTheme.outline,
+              ),
             ),
           ),
         ),
@@ -209,12 +267,14 @@ class _SummaryCard extends StatelessWidget {
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AppTheme.label.copyWith(color: AppTheme.outline)),
-              Text(amount, style: AppTheme.h3.copyWith(color: color)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(amount, style: AppTheme.h3.copyWith(color: color)),
+              ],
+            ),
           ),
         ],
       ),
@@ -247,7 +307,7 @@ class _CategoryItem extends StatelessWidget {
             children: [
               Text(category, style: AppTheme.label),
               Text(
-                'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                formatRupiah(amount),
                 style: AppTheme.label.copyWith(color: color),
               ),
             ],
@@ -256,7 +316,7 @@ class _CategoryItem extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: percentage / 100,
+              value: (percentage / 100).clamp(0.0, 1.0),
               backgroundColor: AppTheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 6,
@@ -288,7 +348,7 @@ class _DebtSummaryItem extends StatelessWidget {
         children: [
           Text(title, style: AppTheme.label),
           Text(
-            'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+            formatRupiah(amount),
             style: AppTheme.h3.copyWith(color: color),
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
@@ -32,17 +33,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _saveExpense() {
-    if (_titleController.text.isEmpty || _amountController.text.isEmpty) {
+    final title = _titleController.text.trim();
+    final amount = int.tryParse(_amountController.text) ?? 0;
+
+    if (title.isEmpty || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mohon isi semua data', style: AppTheme.body)),
+        SnackBar(content: Text('Isi data dengan benar (jumlah harus lebih dari 0)', style: AppTheme.body)),
       );
       return;
     }
 
     final provider = context.read<AppProvider>();
     provider.addExpense({
-      'title': _titleController.text,
-      'amount': int.tryParse(_amountController.text) ?? 0,
+      'title': title,
+      'amount': amount,
       'category': _selectedCategory,
       'time': 'Hari ini',
       'icon': _categories.firstWhere((c) => c['name'] == _selectedCategory)['icon'].toString().split('.').last,
@@ -75,6 +79,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: AppTheme.h1.copyWith(color: AppTheme.secondary),
               decoration: InputDecoration(
                 hintText: '0',

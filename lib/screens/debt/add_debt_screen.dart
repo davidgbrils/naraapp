@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
@@ -25,20 +26,23 @@ class _AddDebtScreenState extends State<AddDebtScreen> {
   }
 
   void _saveDebt() {
-    if (_personController.text.isEmpty || _amountController.text.isEmpty) {
+    final personName = _personController.text.trim();
+    final amount = int.tryParse(_amountController.text) ?? 0;
+
+    if (personName.isEmpty || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mohon isi nama dan jumlah', style: AppTheme.body)),
+        SnackBar(content: Text('Isi nama dan jumlah yang valid', style: AppTheme.body)),
       );
       return;
     }
 
     final provider = context.read<AppProvider>();
     provider.addDebt({
-      'title': _debtType == 'utang' ? 'Utang ${_personController.text}' : 'Piutang ${_personController.text}',
-      'amount': int.tryParse(_amountController.text) ?? 0,
+      'title': _debtType == 'utang' ? 'Utang $personName' : 'Piutang $personName',
+      'amount': amount,
       'type': _debtType,
       'date': 'Hari ini',
-      'note': _noteController.text,
+      'note': _noteController.text.trim(),
     });
 
     Navigator.pop(context);
@@ -133,6 +137,7 @@ class _AddDebtScreenState extends State<AddDebtScreen> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: AppTheme.h2.copyWith(color: _debtType == 'utang' ? AppTheme.danger : AppTheme.success),
               decoration: InputDecoration(
                 hintText: '0',

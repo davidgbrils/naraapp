@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../providers/app_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -43,6 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
+      context.read<AppProvider>().completeOnboarding();
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
@@ -152,7 +155,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           TextButton(
-                            onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+                            onPressed: () {
+                              context.read<AppProvider>().completeOnboarding();
+                              Navigator.pushReplacementNamed(context, '/home');
+                            },
                             child: Text(
                               'Skip',
                               style: AppTheme.label.copyWith(color: AppTheme.outline),

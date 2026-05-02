@@ -1,8 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../providers/app_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  Future<void> _showEditNameDialog(BuildContext context, AppProvider provider) async {
+    final controller = TextEditingController(text: provider.userName);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surfaceContainer,
+          title: Text('Ubah nama', style: AppTheme.h3),
+          content: TextField(
+            controller: controller,
+            style: AppTheme.body,
+            decoration: const InputDecoration(
+              hintText: 'Masukkan nama',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Batal', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty) {
+                  provider.setUserName(newName);
+                }
+                Navigator.pop(dialogContext);
+              },
+              child: Text('Simpan', style: AppTheme.label),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,34 +61,46 @@ class SettingsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Profile section
-            GlassContainer(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.person_rounded, color: AppTheme.onPrimaryContainer, size: 30),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            Consumer<AppProvider>(
+              builder: (context, provider, _) {
+                final userName = provider.userName.trim().isEmpty ? 'Pengguna' : provider.userName.trim();
+                return InkWell(
+                  onTap: () => _showEditNameDialog(context, provider),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                  child: GlassContainer(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
                       children: [
-                        Text('Budi', style: AppTheme.h3),
-                        Text('budi@example.com', style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryContainer,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              userName.substring(0, 1).toUpperCase(),
+                              style: AppTheme.h2.copyWith(color: AppTheme.onPrimaryContainer),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(userName, style: AppTheme.h3),
+                              Text('Ketuk untuk ubah nama', style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.edit_rounded, color: AppTheme.outline),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: AppTheme.outline),
-                ],
-              ),
+                );
+              },
             ),
             const SizedBox(height: 24),
 

@@ -53,18 +53,43 @@ class AppProvider extends ChangeNotifier {
   
   // Transactions
   final List<Map<String, dynamic>> _expenses = [
-    {'title': 'Makan Siang', 'amount': 45000, 'category': 'Makan', 'time': 'Hari ini, 12:30', 'icon': 'restaurant'},
-    {'title': 'Grab', 'amount': 40000, 'category': 'Transport', 'time': 'Hari ini, 09:15', 'icon': 'directions_car'},
+    {
+      'title': 'Makan Siang',
+      'amount': 45000,
+      'category': 'Makan',
+      'time': 'Hari ini, 12:30',
+      'icon': 'restaurant',
+      'createdAt': DateTime.now().subtract(const Duration(hours: 5)),
+    },
+    {
+      'title': 'Grab',
+      'amount': 40000,
+      'category': 'Transport',
+      'time': 'Hari ini, 09:15',
+      'icon': 'directions_car',
+      'createdAt': DateTime.now().subtract(const Duration(hours: 8)),
+    },
   ];
   
   final List<Map<String, dynamic>> _incomes = [];
   
   final List<Map<String, dynamic>> _debts = [
-    {'title': 'Utang Andi', 'amount': 150000, 'type': 'utang', 'date': 'Kemarin'},
+    {
+      'title': 'Utang Andi',
+      'amount': 150000,
+      'type': 'utang',
+      'date': 'Kemarin',
+      'createdAt': DateTime.now().subtract(const Duration(days: 1)),
+    },
   ];
   
   final List<Map<String, dynamic>> _reminders = [
-    {'title': 'Bayar Listrik', 'date': 'Besok', 'status': 'menunggu'},
+    {
+      'title': 'Bayar Listrik',
+      'date': 'Besok',
+      'status': 'menunggu',
+      'createdAt': DateTime.now(),
+    },
   ];
   
   List<Map<String, dynamic>> get expenses => _expenses;
@@ -77,22 +102,40 @@ class AppProvider extends ChangeNotifier {
   int get activeReminders => _reminders.where((r) => r['status'] == 'menunggu').length;
   
   void addExpense(Map<String, dynamic> expense) {
+    expense['createdAt'] = expense['createdAt'] ?? DateTime.now();
     _expenses.insert(0, expense);
     notifyListeners();
   }
   
   void addIncome(Map<String, dynamic> income) {
+    income['createdAt'] = income['createdAt'] ?? DateTime.now();
     _incomes.insert(0, income);
     notifyListeners();
   }
   
   void addDebt(Map<String, dynamic> debt) {
+    debt['createdAt'] = debt['createdAt'] ?? DateTime.now();
     _debts.insert(0, debt);
     notifyListeners();
   }
   
   void addReminder(Map<String, dynamic> reminder) {
+    reminder['createdAt'] = reminder['createdAt'] ?? DateTime.now();
     _reminders.insert(0, reminder);
+    notifyListeners();
+  }
+
+  void toggleReminderStatus(int index) {
+    if (index < 0 || index >= _reminders.length) return;
+
+    final currentStatus = _reminders[index]['status'] as String? ?? 'menunggu';
+    _reminders[index]['status'] = currentStatus == 'menunggu' ? 'selesai' : 'menunggu';
+    notifyListeners();
+  }
+
+  void removeReminderAt(int index) {
+    if (index < 0 || index >= _reminders.length) return;
+    _reminders.removeAt(index);
     notifyListeners();
   }
 }
