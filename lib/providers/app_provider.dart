@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 class AppProvider extends ChangeNotifier {
   bool _isOnboardingComplete = false;
-  bool _isLoggedIn = false;
+  final bool _isLoggedIn = false;
   String _userName = 'Budi';
+  int _selectedNavIndex = 1;
   
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isLoggedIn => _isLoggedIn;
   String get userName => _userName;
+  int get selectedNavIndex => _selectedNavIndex;
   
   void completeOnboarding() {
     _isOnboardingComplete = true;
@@ -16,6 +18,11 @@ class AppProvider extends ChangeNotifier {
   
   void setUserName(String name) {
     _userName = name;
+    notifyListeners();
+  }
+
+  void setNavIndex(int index) {
+    _selectedNavIndex = index;
     notifyListeners();
   }
   
@@ -79,6 +86,8 @@ class AppProvider extends ChangeNotifier {
       'amount': 150000,
       'type': 'utang',
       'date': 'Kemarin',
+      'paidAmount': 0,
+      'status': 'berjalan',
       'createdAt': DateTime.now().subtract(const Duration(days: 1)),
     },
   ];
@@ -98,8 +107,17 @@ class AppProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get reminders => _reminders;
   
   double get todayExpense => _expenses.fold(0, (sum, item) => sum + (item['amount'] as int));
-  double get totalActiveDebt => _debts.where((d) => d['type'] == 'utang').fold(0, (sum, item) => sum + (item['amount'] as int));
+  double get totalActiveDebt => _debts
+      .where((debt) => debt['type'] == 'utang')
+      .fold(0, (sum, debt) => sum + _remainingDebtAmount(debt));
   int get activeReminders => _reminders.where((r) => r['status'] == 'menunggu').length;
+
+  double _remainingDebtAmount(Map<String, dynamic> debt) {
+    final amount = (debt['amount'] as num?)?.toDouble() ?? 0;
+    final paidAmount = (debt['paidAmount'] as num?)?.toDouble() ?? 0;
+    final remaining = amount - paidAmount;
+    return remaining < 0 ? 0 : remaining;
+  }
   
   void addExpense(Map<String, dynamic> expense) {
     expense['createdAt'] = expense['createdAt'] ?? DateTime.now();
@@ -115,7 +133,32 @@ class AppProvider extends ChangeNotifier {
   
   void addDebt(Map<String, dynamic> debt) {
     debt['createdAt'] = debt['createdAt'] ?? DateTime.now();
+    debt['paidAmount'] = debt['paidAmount'] ?? 0;
+    debt['status'] = debt['status'] ?? 'berjalan';
     _debts.insert(0, debt);
+    notifyListeners();
+  }
+
+  void updateDebtPayment(int index, int paymentAmount) {
+    if (index < 0 || index >= _debts.length || paymentAmount <= 0) return;
+
+    final debt = _debts[index];
+    final totalAmount = (debt['amount'] as num?)?.toInt() ?? 0;
+    final currentPaidAmount = (debt['paidAmount'] as num?)?.toInt() ?? 0;
+    final nextPaidAmount = (currentPaidAmount + paymentAmount).clamp(0, totalAmount);
+
+    debt['paidAmount'] = nextPaidAmount;
+    debt['status'] = nextPaidAmount >= totalAmount ? 'lunas' : 'berjalan';
+    notifyListeners();
+  }
+
+  void markDebtAsPaid(int index) {
+    if (index < 0 || index >= _debts.length) return;
+
+    final debt = _debts[index];
+    final totalAmount = (debt['amount'] as num?)?.toInt() ?? 0;
+    debt['paidAmount'] = totalAmount;
+    debt['status'] = 'lunas';
     notifyListeners();
   }
   

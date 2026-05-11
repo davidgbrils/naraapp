@@ -1,111 +1,134 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
 import '../voice_overlay/voice_overlay.dart';
+import '../transaction/transaction_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      bottomNavigationBar: const SafeArea(
-        minimum: EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: _BottomNavBar(),
-      ),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 120,
-                toolbarHeight: 92,
-                floating: true,
-                pinned: true,
-                backgroundColor: AppTheme.surfaceContainerLowest.withValues(alpha: 0.8),
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.surfaceContainerLowest.withValues(alpha: 0.9),
-                          AppTheme.background,
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ),
-                title: Consumer<AppProvider>(
-                  builder: (context, provider, _) {
-                    final userName = provider.userName.trim().isEmpty ? 'Pengguna' : provider.userName.trim();
-                    final initials = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'U';
-
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: AppTheme.surfaceContainerHigh,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                            ),
-                            child: Center(
-                              child: Text(initials, style: AppTheme.h3.copyWith(color: AppTheme.primaryContainer)),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('Good morning, Nara', style: AppTheme.h3),
-                              Text('Halo, $userName', style: AppTheme.label.copyWith(color: AppTheme.outline)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, right: 8),
-                    child: IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.notifications_rounded, color: AppTheme.onSurfaceVariant),
-                    ),
-                  ),
-                ],
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.all(20),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    const SizedBox(height: 16),
-                    _VoiceActivationCard(),
-                    const SizedBox(height: 20),
-                    _QuickStatsRow(),
-                    const SizedBox(height: 20),
-                    _QuickActionsGrid(),
-                    const SizedBox(height: 20),
-                    _RecentActivityList(),
-                    const SizedBox(height: 24),
-                  ]),
-                ),
-              ),
+    return Consumer<AppProvider>(
+      builder: (context, provider, _) {
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          bottomNavigationBar: const SafeArea(
+            minimum: EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: _BottomNavBar(),
+          ),
+          body: IndexedStack(
+            index: provider.selectedNavIndex,
+            children: [
+              const _HomeContent(),
+              const TransactionScreen(),
+              const Center(child: Text('Planning Screen')), // Placeholder for Planning
+              const Center(child: Text('Profile Screen')),  // Placeholder for Profile
             ],
           ),
-          const VoiceOverlay(),
-        ],
-      ),
+        );
+      },
+    );
+  }
+}
+
+class _HomeContent extends StatelessWidget {
+  const _HomeContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 120,
+              toolbarHeight: 92,
+              floating: true,
+              pinned: true,
+              backgroundColor: AppTheme.surfaceContainerLowest.withValues(alpha: 0.8),
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.surfaceContainerLowest.withValues(alpha: 0.9),
+                        AppTheme.background,
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              title: Consumer<AppProvider>(
+                builder: (context, provider, _) {
+                  final userName = provider.userName.trim().isEmpty ? 'Pengguna' : provider.userName.trim();
+                  final initials = userName.isNotEmpty ? userName.substring(0, 1).toUpperCase() : 'U';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceContainerHigh,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          child: Center(
+                            child: Text(initials, style: AppTheme.h3.copyWith(color: AppTheme.primaryContainer)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Good morning, Nara', style: AppTheme.h3),
+                            Text('Halo, $userName', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, right: 8),
+                  child: IconButton(
+                    onPressed: () {},
+                    icon: const Icon(Icons.notifications_rounded, color: AppTheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const SizedBox(height: 16),
+                  _VoiceActivationCard(),
+                  const SizedBox(height: 20),
+                  _QuickStatsRow(),
+                  const SizedBox(height: 20),
+                  _QuickActionsGrid(),
+                  const SizedBox(height: 20),
+                  _RecentActivityList(),
+                  const SizedBox(height: 24),
+                ]),
+              ),
+            ),
+          ],
+        ),
+        const VoiceOverlay(),
+      ],
     );
   }
 }
@@ -137,31 +160,45 @@ class _VoiceActivationCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text('Siap Mendengar', style: AppTheme.label.copyWith(color: AppTheme.onSurfaceVariant)),
+                  Semantics(
+                    label: 'Status: Siap mendengar input suara',
+                    child: Text('Siap Mendengar', style: AppTheme.label.copyWith(color: AppTheme.onSurfaceVariant)),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
-              GestureDetector(
-                onTap: provider.startListening,
-                child: Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainer,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.primaryContainer, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryContainer.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+              Semantics(
+                button: true,
+                enabled: true,
+                label: 'Tombol aktivasi mikrofon untuk input suara',
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    provider.startListening();
+                  },
+                  child: Tooltip(
+                    message: 'Tekan untuk mulai berbicara',
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceContainer,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppTheme.primaryContainer, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryContainer.withValues(alpha: 0.4),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.mic_rounded,
-                    size: 40,
-                    color: AppTheme.primary,
+                      child: const Icon(
+                        Icons.mic_rounded,
+                        size: 40,
+                        color: AppTheme.primary,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -225,13 +262,16 @@ class _StatCard extends StatelessWidget {
     return GlassContainer(
       padding: const EdgeInsets.all(12),
       width: 160,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: AppTheme.label.copyWith(color: color)),
-          const SizedBox(height: 4),
-          Text(value, style: AppTheme.h3),
-        ],
+      child: Semantics(
+        label: '$label: $value',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: AppTheme.label.copyWith(color: color)),
+            const SizedBox(height: 4),
+            Text(value, style: AppTheme.h3),
+          ],
+        ),
       ),
     );
   }
@@ -313,22 +353,33 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassContainer(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                style: AppTheme.label,
-                overflow: TextOverflow.ellipsis,
-              ),
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          child: Semantics(
+            button: true,
+            enabled: true,
+            label: label,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: AppTheme.label,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -479,33 +530,45 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
-      borderRadius: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          const _NavItem(icon: Icons.home_rounded, isActive: true, label: 'Home'),
-          _NavItem(
-            icon: Icons.bubble_chart_rounded,
-            isActive: false,
-            label: 'Insight',
-            onTap: () => Navigator.pushNamed(context, '/report'),
+    return Consumer<AppProvider>(
+      builder: (context, provider, _) {
+        return GlassContainer(
+          borderRadius: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Icons.home_outlined, 
+                isActive: provider.selectedNavIndex == 0, 
+                label: 'Home',
+                onTap: () => provider.setNavIndex(0),
+              ),
+              _NavItem(
+                icon: Icons.receipt_long_outlined, 
+                isActive: provider.selectedNavIndex == 1, 
+                label: 'Transaksi',
+                onTap: () => provider.setNavIndex(1),
+              ),
+              _NavItem(
+                icon: Icons.calendar_month_outlined, 
+                isActive: provider.selectedNavIndex == 2, 
+                label: 'Planning',
+                onTap: () => provider.setNavIndex(2),
+              ),
+              _NavItem(
+                icon: Icons.person_outline_rounded, 
+                isActive: provider.selectedNavIndex == 3, 
+                label: 'Profile', 
+                onTap: () {
+                  provider.setNavIndex(3);
+                  Navigator.pushNamed(context, '/settings');
+                },
+              ),
+            ],
           ),
-          _NavItem(
-            icon: Icons.auto_awesome_rounded,
-            isActive: false,
-            label: 'AI',
-            onTap: () => context.read<AppProvider>().startListening(),
-          ),
-          _NavItem(
-            icon: Icons.person_rounded,
-            isActive: false,
-            label: 'Profil',
-            onTap: () => Navigator.pushNamed(context, '/settings'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -527,34 +590,24 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryContainer.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: AppTheme.primaryContainer.withValues(alpha: 0.3),
-                    blurRadius: 15,
-                  ),
-                ]
-              : null,
-        ),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 80,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              color: isActive ? AppTheme.primary : AppTheme.outline,
-              size: 24,
+              color: isActive ? AppTheme.primary : AppTheme.outline.withValues(alpha: 0.7),
+              size: 28,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               label,
               style: AppTheme.label.copyWith(
-                color: isActive ? AppTheme.primary : AppTheme.outline,
-                fontSize: 10,
+                color: isActive ? AppTheme.primary : AppTheme.outline.withValues(alpha: 0.7),
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],

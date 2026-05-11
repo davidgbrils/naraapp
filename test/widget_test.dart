@@ -4,6 +4,7 @@ import 'package:nara/main.dart';
 void main() {
   testWidgets('App launches', (WidgetTester tester) async {
     await tester.pumpWidget(const NaraApp());
-    await tester.pump(const Duration(seconds: 1));
+    // Pump enough time to allow splash screen to navigate
+    await tester.pump(const Duration(seconds: 3));
   });
 }
