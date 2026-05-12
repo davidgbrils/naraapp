@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
+import '../reminder/reminder_list_screen.dart';
 import '../voice_overlay/voice_overlay.dart';
 import '../transaction/transaction_screen.dart';
 
@@ -25,7 +26,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               const _HomeContent(),
               const TransactionScreen(),
-              const Center(child: Text('Planning Screen')), // Placeholder for Planning
+              const ReminderListScreen(),
               const Center(child: Text('Profile Screen')),  // Placeholder for Profile
             ],
           ),

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import '../services/notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
   bool _isOnboardingComplete = false;
   final bool _isLoggedIn = false;
   String _userName = 'Budi';
   int _selectedNavIndex = 1;
+  final NotificationService _notificationService = NotificationService();
   
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isLoggedIn => _isLoggedIn;
@@ -30,10 +34,14 @@ class AppProvider extends ChangeNotifier {
   bool _isListening = false;
   bool _isProcessing = false;
   String _lastIntent = '';
+  Map<String, dynamic>? _activeAlert;
+  int _alertCountdown = 0;
   
   bool get isListening => _isListening;
   bool get isProcessing => _isProcessing;
   String get lastIntent => _lastIntent;
+  Map<String, dynamic>? get activeAlert => _activeAlert;
+  int get alertCountdown => _alertCountdown;
   
   void startListening() {
     _isListening = true;
@@ -56,6 +64,33 @@ class AppProvider extends ChangeNotifier {
   void setLastIntent(String intent) {
     _lastIntent = intent;
     notifyListeners();
+  }
+
+  void triggerReminderAlert(int reminderIndex) {
+    if (reminderIndex < 0 || reminderIndex >= _reminders.length) return;
+
+    _activeAlert = Map<String, dynamic>.from(_reminders[reminderIndex])
+      ..['index'] = reminderIndex;
+    _alertCountdown = 10;
+    notifyListeners();
+  }
+
+  void dismissAlert() {
+    _activeAlert = null;
+    _alertCountdown = 0;
+    notifyListeners();
+  }
+
+  void snoozeAlert(int seconds) {
+    _alertCountdown = seconds;
+    notifyListeners();
+  }
+
+  void updateAlertCountdown() {
+    if (_alertCountdown > 0) {
+      _alertCountdown--;
+      notifyListeners();
+    }
   }
   
   // Transactions
@@ -105,6 +140,8 @@ class AppProvider extends ChangeNotifier {
   List<Map<String, dynamic>> get incomes => _incomes;
   List<Map<String, dynamic>> get debts => _debts;
   List<Map<String, dynamic>> get reminders => _reminders;
+  List<Map<String, dynamic>> get activeRemindersList => _reminders.where((r) => r['status'] == 'menunggu').toList();
+  List<Map<String, dynamic>> get completedRemindersList => _reminders.where((r) => r['status'] == 'selesai').toList();
   
   double get todayExpense => _expenses.fold(0, (sum, item) => sum + (item['amount'] as int));
   double get totalActiveDebt => _debts
@@ -165,6 +202,19 @@ class AppProvider extends ChangeNotifier {
   void addReminder(Map<String, dynamic> reminder) {
     reminder['createdAt'] = reminder['createdAt'] ?? DateTime.now();
     _reminders.insert(0, reminder);
+    _scheduleReminderNotification(0, reminder);
+    _saveReminders();
+    notifyListeners();
+  }
+
+  void updateReminder(int index, Map<String, dynamic> updatedReminder) {
+    if (index < 0 || index >= _reminders.length) return;
+
+    updatedReminder['createdAt'] = _reminders[index]['createdAt'] ?? DateTime.now();
+    _reminders[index] = updatedReminder;
+    _notificationService.cancelReminder(index);
+    _scheduleReminderNotification(index, updatedReminder);
+    _saveReminders();
     notifyListeners();
   }
 
@@ -173,12 +223,139 @@ class AppProvider extends ChangeNotifier {
 
     final currentStatus = _reminders[index]['status'] as String? ?? 'menunggu';
     _reminders[index]['status'] = currentStatus == 'menunggu' ? 'selesai' : 'menunggu';
+    _saveReminders();
     notifyListeners();
   }
 
   void removeReminderAt(int index) {
     if (index < 0 || index >= _reminders.length) return;
+    _notificationService.cancelReminder(index);
     _reminders.removeAt(index);
+    _saveReminders();
     notifyListeners();
+  }
+
+  // Notification Scheduling
+  Future<void> _scheduleReminderNotification(int index, Map<String, dynamic> reminder) async {
+    try {
+      final dateString = reminder['date'] as String?;
+      if (dateString == null || dateString.isEmpty) return;
+
+      final scheduledDateTime = _parseDateString(dateString);
+      if (scheduledDateTime == null || scheduledDateTime.isBefore(DateTime.now())) return;
+
+      final title = reminder['title'] as String? ?? 'Reminder';
+      final type = reminder['type'] as String? ?? 'Notifikasi';
+
+      await _notificationService.scheduleReminder(
+        index,
+        title,
+        'Reminder: $type',
+        scheduledDate: scheduledDateTime,
+      );
+    } catch (e) {
+      debugPrint('Error scheduling notification: $e');
+    }
+  }
+
+  DateTime? _parseDateString(String dateString) {
+    try {
+      // Expected format: "DD MonthName YYYY • HH:MM"
+      if (!dateString.contains('•')) return null;
+
+      final parts = dateString.split('•');
+      if (parts.length != 2) return null;
+
+      final datePart = parts[0].trim(); // "DD MonthName YYYY"
+      final timePart = parts[1].trim(); // "HH:MM"
+
+      final dateComponents = datePart.split(' ');
+      if (dateComponents.length != 3) return null;
+
+      final day = int.tryParse(dateComponents[0]);
+      final monthName = dateComponents[1];
+      final year = int.tryParse(dateComponents[2]);
+
+      if (day == null || year == null) return null;
+
+      final month = _getMonthNumber(monthName);
+      if (month == null) return null;
+
+      final timeComponents = timePart.split(':');
+      if (timeComponents.length != 2) return null;
+
+      final hour = int.tryParse(timeComponents[0]);
+      final minute = int.tryParse(timeComponents[1]);
+
+      if (hour == null || minute == null) return null;
+
+      return DateTime(year, month, day, hour, minute);
+    } catch (e) {
+      debugPrint('Error parsing date: $e');
+      return null;
+    }
+  }
+
+  int? _getMonthNumber(String monthName) {
+    const months = {
+      'Januari': 1,
+      'Februari': 2,
+      'Maret': 3,
+      'April': 4,
+      'Mei': 5,
+      'Juni': 6,
+      'Juli': 7,
+      'Agustus': 8,
+      'September': 9,
+      'Oktober': 10,
+      'November': 11,
+      'Desember': 12,
+    };
+    return months[monthName];
+  }
+
+  Future<void> initializeNotifications() async {
+    await _notificationService.initialize();
+  }
+
+  Future<void> rescheduleAllReminders() async {
+    for (int i = 0; i < _reminders.length; i++) {
+      final reminder = _reminders[i];
+      final status = reminder['status'] as String? ?? 'menunggu';
+      if (status == 'menunggu') {
+        await _scheduleReminderNotification(i, reminder);
+      }
+    }
+  }
+
+  // Persistent Storage Methods
+  static const String _remindersKey = 'reminders';
+
+  Future<void> _saveReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = jsonEncode(_reminders);
+      await prefs.setString(_remindersKey, jsonString);
+    } catch (e) {
+      debugPrint('Error saving reminders: $e');
+    }
+  }
+
+  Future<void> loadReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_remindersKey);
+      
+      if (jsonString != null && jsonString.isNotEmpty) {
+        final List<dynamic> decodedList = jsonDecode(jsonString);
+        _reminders.clear();
+        _reminders.addAll(
+          decodedList.map((item) => Map<String, dynamic>.from(item as Map<dynamic, dynamic>)).toList(),
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading reminders: $e');
+    }
   }
 }

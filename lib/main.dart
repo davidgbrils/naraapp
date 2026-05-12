@@ -14,7 +14,7 @@ import 'screens/report/report_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'providers/app_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -22,16 +22,27 @@ void main() {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const NaraApp());
+  
+  // Initialize provider and load reminders
+  final appProvider = AppProvider();
+  await appProvider.initializeNotifications();
+  await appProvider.loadReminders();
+  
+  // Reschedule all active reminders
+  await appProvider.rescheduleAllReminders();
+  
+  runApp(NaraApp(appProvider: appProvider));
 }
 
 class NaraApp extends StatelessWidget {
-  const NaraApp({super.key});
+  final AppProvider appProvider;
+  
+  const NaraApp({super.key, required this.appProvider});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AppProvider(),
+    return ChangeNotifierProvider.value(
+      value: appProvider,
       child: MaterialApp(
         title: 'NARA',
         debugShowCheckedModeBanner: false,
