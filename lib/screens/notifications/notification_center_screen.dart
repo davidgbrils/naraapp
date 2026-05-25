@@ -149,7 +149,12 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   ? '${I18n.t(context, 'due_date')}: $dueDate'
                   : _formatCreatedAtLabel(context, createdAt);
               final title = isDebtOwed ? 'Utang (Saya) kepada $person' : 'Piutang (Saya) dari $person';
-              final detail = status == 'lunas' ? 'Status: Lunas' : 'Status: Belum lunas';
+              final h1Raw = (debt['debtReminderH1At'] as String?) ?? '';
+              final h0Raw = (debt['debtReminderH0At'] as String?) ?? '';
+              final scheduleInfo = (h1Raw.isEmpty && h0Raw.isEmpty)
+                  ? 'Jadwal H-1/H-0: belum diatur'
+                  : 'Jadwal H-1: ${h1Raw.isEmpty ? '-' : h1Raw} | H-0: ${h0Raw.isEmpty ? '-' : h0Raw}';
+              final detail = '${status == 'lunas' ? 'Status: Lunas' : 'Status: Belum lunas'}\n$scheduleInfo';
               final id = 'debt:${debt['debtId'] ?? itemIndex}:$status:$dueDate';
               return _NotificationItem(
                 id: id,
