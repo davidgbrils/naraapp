@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme.dart';
+import '../../components/index.dart';
+import '../../core/i18n.dart';
+import '../../core/theme/nara_colors.dart';
+import '../../core/theme/nara_radius.dart';
+import '../../core/theme/nara_spacing.dart';
+import '../../core/theme/nara_text_styles.dart';
 import '../../providers/app_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -13,39 +18,34 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-
-  final List<Map<String, dynamic>> _pages = [
-    {
-      'title': 'Cukup Ngomong, Beres!',
-      'description': 'Catat utang, buat reminder, lacak pengeluaran — semua cukup dengan suara. Tanpa ribet, tanpa ketik.',
-      'image': 'onboarding_1',
-    },
-    {
-      'title': 'Asisten Suara Cerdas',
-      'description': 'NARA memahami konteks percakapan. Bilang "bayar listrik bulan ini" dan NARA tahu apa yang harus dilakukan.',
-      'image': 'onboarding_2',
-    },
-    {
-      'title': 'Semua dalam Satu Tempat',
-      'description': 'Kelola keuangan, utang-piutang, dan jadwalmu di satu aplikasi. Mulai sekarang dan rasakan bedanya!',
-      'image': 'onboarding_3',
-    },
-  ];
-
+  bool _isCompleting = false;
   @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
   }
 
-  void _nextPage() {
+  Future<void> _nextPage() async {
+    if (_isCompleting) {
+      return;
+    }
+
     if (_currentPage < 2) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      context.read<AppProvider>().completeOnboarding();
+      setState(() {
+        _isCompleting = true;
+      });
+
+      await context.read<AppProvider>().completeOnboarding();
+
+      if (!mounted) {
+        return;
+      }
+
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
@@ -53,7 +53,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: NaraColors.background,
       body: Stack(
         children: [
           // Background blobs
@@ -64,11 +64,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               width: 150,
               height: 150,
               decoration: BoxDecoration(
-                color: AppTheme.primaryContainer.withValues(alpha: 0.2),
+                color: NaraColors.primary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.primaryContainer.withValues(alpha: 0.2),
+                    color: NaraColors.primary.withValues(alpha: 0.15),
                     blurRadius: 60,
                     spreadRadius: 20,
                   ),
@@ -83,11 +83,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppTheme.secondary.withValues(alpha: 0.2),
+                color: NaraColors.accentOrange.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.secondary.withValues(alpha: 0.2),
+                    color: NaraColors.accentOrange.withValues(alpha: 0.15),
                     blurRadius: 60,
                     spreadRadius: 20,
                   ),
@@ -104,11 +104,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: PageView.builder(
                     controller: _pageController,
                     onPageChanged: (index) => setState(() => _currentPage = index),
-                    itemCount: _pages.length,
+                    itemCount: 3,
                     itemBuilder: (context, index) {
                       return _OnboardingPage(
-                        title: _pages[index]['title'],
-                        description: _pages[index]['description'],
+                        title: I18n.t(context, 'onboarding_title_$index'),
+                        description: I18n.t(context, 'onboarding_desc_$index'),
                         pageIndex: index,
                       );
                     },
@@ -116,9 +116,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 
                 // Bottom card
-                GlassContainer(
-                  borderRadius: 28,
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                NaraCard(
+                  borderRadius: NaraRadius.xl,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -128,18 +127,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         children: List.generate(3, (index) {
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            margin: const EdgeInsets.symmetric(horizontal: NaraSpacing.xs),
                             width: _currentPage == index ? 32 : 8,
                             height: 8,
                             decoration: BoxDecoration(
                               color: _currentPage == index 
-                                ? AppTheme.primaryContainer 
-                                : AppTheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(4),
+                                ? NaraColors.primary 
+                                : NaraColors.textHint.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(NaraRadius.xs),
                               boxShadow: _currentPage == index
                                 ? [
                                     BoxShadow(
-                                      color: AppTheme.primaryContainer.withValues(alpha: 0.4),
+                                      color: NaraColors.primary.withValues(alpha: 0.35),
                                       blurRadius: 10,
                                     )
                                   ]
@@ -148,41 +147,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           );
                         }),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: NaraSpacing.xl),
                       
                       // Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           TextButton(
-                            onPressed: () {
-                              context.read<AppProvider>().completeOnboarding();
+                            onPressed: _isCompleting
+                                ? null
+                                : () async {
+                              setState(() {
+                                _isCompleting = true;
+                              });
+
+                              await context.read<AppProvider>().completeOnboarding();
+
+                              if (!context.mounted) {
+                                return;
+                              }
+
                               Navigator.pushReplacementNamed(context, '/home');
                             },
-                            child: Text(
-                              'Skip',
-                              style: AppTheme.label.copyWith(color: AppTheme.outline),
+                            child: AnimatedOpacity(
+                              opacity: _isCompleting ? 0.5 : 1,
+                              duration: const Duration(milliseconds: 150),
+                              child: Text(
+                                _isCompleting ? I18n.t(context, 'saving') : I18n.t(context, 'skip'),
+                                style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                              ),
                             ),
                           ),
-                          ElevatedButton(
+                          NaraPrimaryButton(
+                            label: _currentPage < 2 ? I18n.t(context, 'continue') : I18n.t(context, 'enter_nara'),
                             onPressed: _nextPage,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryContainer,
-                              foregroundColor: AppTheme.onPrimaryContainer,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppTheme.radiusXl),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('Lanjut', style: AppTheme.label),
-                                const SizedBox(width: 8),
-                                const Icon(Icons.arrow_forward_rounded, size: 18),
-                              ],
-                            ),
+                            isLoading: _isCompleting,
+                            fullWidth: false,
+                            icon: const Icon(Icons.arrow_forward_rounded, size: 18, color: NaraColors.textOnPrimary),
                           ),
                         ],
                       ),
@@ -212,7 +213,7 @@ class _OnboardingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(NaraSpacing.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -223,13 +224,13 @@ class _OnboardingPage extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primaryContainer.withValues(alpha: 0.3),
-                  AppTheme.secondary.withValues(alpha: 0.2),
+                  NaraColors.primary.withValues(alpha: 0.25),
+                  NaraColors.accentOrange.withValues(alpha: 0.18),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(NaraRadius.lg),
             ),
             child: Center(
               child: Icon(
@@ -239,20 +240,20 @@ class _OnboardingPage extends StatelessWidget {
                     ? Icons.psychology_rounded
                     : Icons.dashboard_rounded,
                 size: 80,
-                color: AppTheme.primaryContainer,
+                color: NaraColors.primary,
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: NaraSpacing.xxl),
           Text(
             title,
-            style: AppTheme.h1,
+            style: NaraTextStyles.h1,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: NaraSpacing.md),
           Text(
             description,
-            style: AppTheme.body.copyWith(color: AppTheme.onSurfaceVariant),
+            style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
             textAlign: TextAlign.center,
           ),
         ],
@@ -260,3 +261,5 @@ class _OnboardingPage extends StatelessWidget {
     );
   }
 }
+
+

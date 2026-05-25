@@ -1,7 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nara/providers/app_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('AppProvider debt payment', () {
     test('addDebt initializes debt with paidAmount and status', () {
       final provider = AppProvider();
@@ -117,6 +124,47 @@ void main() {
 
       // Should be: initialDebt (150000) + 70000 (Utang 1 remaining) + 0 (Utang 2 paid)
       expect(provider.totalActiveDebt, initialDebt + 70000);
+    });
+  });
+
+  group('AppProvider transaction utilities', () {
+    test('detects potential duplicate expense in short window', () {
+      final provider = AppProvider();
+      provider.addExpense({
+        'title': 'Makan Siang',
+        'amount': 50000,
+        'category': 'Makan',
+        'time': 'Hari ini',
+        'icon': 'restaurant',
+      });
+
+      final duplicated = provider.hasPotentialDuplicateExpense(
+        title: 'Makan Siang',
+        amount: 50000,
+        category: 'Makan',
+      );
+      expect(duplicated, isTrue);
+    });
+
+    test('update/remove expense works', () {
+      final provider = AppProvider();
+      provider.addExpense({
+        'title': 'Grab',
+        'amount': 20000,
+        'category': 'Transport',
+        'time': 'Hari ini',
+        'icon': 'directions_car',
+      });
+      provider.updateExpenseAt(0, {
+        ...provider.expenses[0],
+        'title': 'Grab Car',
+        'amount': 25000,
+      });
+      expect(provider.expenses[0]['title'], 'Grab Car');
+      expect(provider.expenses[0]['amount'], 25000);
+
+      provider.removeExpenseAt(0);
+      expect(provider.expenses, isEmpty);
     });
   });
 }

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme.dart';
+import 'create_reminder_screen.dart';
+import '../../components/index.dart';
+import '../../core/i18n.dart';
+import '../../core/theme/nara_colors.dart';
+import '../../core/theme/nara_radius.dart';
+import '../../core/theme/nara_spacing.dart';
+import '../../core/theme/nara_text_styles.dart';
 import '../../providers/app_provider.dart';
 import 'reminder_alert_screen.dart';
-import 'create_reminder_screen.dart';
 
 class ReminderListScreen extends StatefulWidget {
   const ReminderListScreen({super.key});
@@ -13,39 +18,42 @@ class ReminderListScreen extends StatefulWidget {
 }
 
 class _ReminderListScreenState extends State<ReminderListScreen> {
-  String _selectedFilter = 'Semua';
+  String _selectedFilter = 'all';
 
-  final List<String> _filters = const [
-    'Semua',
-    'Hari ini',
-    'Mendatang',
-    'Selesai',
-  ];
+  final List<String> _filters = const ['all', 'today', 'upcoming', 'done'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: NaraColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded),
-          onPressed: () => Navigator.pop(context),
+        elevation: 0,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : const SizedBox(width: 48),
+        leadingWidth: 48,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(I18n.t(context, 'planning'), style: NaraTextStyles.h2),
+            const SizedBox(height: 2),
+            Text(
+              I18n.t(context, 'manage_schedule'),
+              style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+            ),
+          ],
         ),
-        title: Text('Reminders', style: AppTheme.h3),
         centerTitle: true,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 14,
-              backgroundColor: AppTheme.surfaceContainerHigh,
-              child: Text(
-                'N',
-                style: AppTheme.label.copyWith(color: AppTheme.primary),
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: NaraColors.textPrimary),
+            onPressed: () => Navigator.pushNamed(context, '/notifications'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Consumer<AppProvider>(
@@ -54,213 +62,177 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
           final completedReminders = provider.completedRemindersList;
           final filteredActiveReminders = _filterReminders(activeReminders);
           final filteredCompletedReminders = _filterReminders(completedReminders);
-          final heroReminder = filteredActiveReminders.isNotEmpty
-              ? filteredActiveReminders.first
-              : (provider.reminders.isNotEmpty ? provider.reminders.first : null);
-
           return CustomScrollView(
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                padding: const EdgeInsets.fromLTRB(NaraSpacing.lg, NaraSpacing.sm, NaraSpacing.lg, 0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Reminder', style: AppTheme.h1),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Kelola jadwal dan pengingat Anda.',
-                                style: AppTheme.body.copyWith(color: AppTheme.outline),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, '/create-reminder'),
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: Text('Buat Baru', style: AppTheme.label.copyWith(color: AppTheme.onPrimaryContainer)),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppTheme.primaryContainer,
-                            foregroundColor: AppTheme.onPrimaryContainer,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                        ),
-                      ],
+                    NaraReveal(
+                      delay: Duration(milliseconds: 40),
+                      child: _ReminderHeader(onCreate: () => Navigator.pushNamed(context, '/create-reminder')),
                     ),
-                    const SizedBox(height: 18),
-                    _HeroReminderCard(
-                      reminder: heroReminder,
-                      reminderIndex: filteredActiveReminders.isNotEmpty
-                          ? provider.reminders.indexOf(filteredActiveReminders.first)
-                          : null,
-                      onEdit: filteredActiveReminders.isNotEmpty
-                          ? () {
-                              final reminderToEdit = filteredActiveReminders.first;
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => CreateReminderScreen(
-                                    editIndex: provider.reminders.indexOf(reminderToEdit),
-                                  ),
-                                ),
-                              );
-                            }
-                          : null,
-                      onDismiss: filteredActiveReminders.isNotEmpty
-                          ? () {
-                              final reminderIndex = provider.reminders.indexOf(filteredActiveReminders.first);
-                              provider.toggleReminderStatus(reminderIndex);
-                              setState(() {});
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: 18),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _filters.map((filter) {
-                          final isSelected = filter == _selectedFilter;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(filter),
-                              selected: isSelected,
-                              showCheckmark: false,
-                              selectedColor: AppTheme.primaryContainer,
-                              backgroundColor: AppTheme.surfaceContainer,
-                              labelStyle: AppTheme.label.copyWith(
-                                color: isSelected ? AppTheme.onPrimaryContainer : AppTheme.outline,
+                    const SizedBox(height: NaraSpacing.lg),
+                    NaraReveal(
+                      delay: const Duration(milliseconds: 170),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _filters.map((filter) {
+                            final isSelected = filter == _selectedFilter;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: NaraSpacing.sm),
+                              child: NaraChip(
+                                label: I18n.t(context, filter),
+                                selected: isSelected,
+                                onTap: () => setState(() => _selectedFilter = filter),
                               ),
-                              side: BorderSide(
-                                color: isSelected ? AppTheme.primaryContainer : Colors.transparent,
-                              ),
-                              onSelected: (_) => setState(() => _selectedFilter = filter),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: NaraSpacing.lg),
                     if (filteredActiveReminders.isNotEmpty) ...[
-                      Text('Aktif', style: AppTheme.label.copyWith(color: AppTheme.outline)),
-                      const SizedBox(height: 10),
+                      NaraReveal(
+                        delay: Duration(milliseconds: 220),
+                        child: _SectionTitle(label: I18n.t(context, 'active')),
+                      ),
+                      const SizedBox(height: NaraSpacing.sm),
                       ...filteredActiveReminders.asMap().entries.map(
                             (entry) => Padding(
-                              padding: EdgeInsets.only(bottom: entry.key == filteredActiveReminders.length - 1 ? 0 : 10),
-                              child: _ReminderCard(
-                                reminder: entry.value,
-                                accentColor: _accentColorForIndex(entry.key),
-                                onToggle: () => provider.toggleReminderStatus(provider.reminders.indexOf(entry.value)),
-                                onDelete: () => provider.removeReminderAt(provider.reminders.indexOf(entry.value)),
-                                onAlert: () async {
-                                  if (!mounted) return;
-                                  // ignore: use_build_context_synchronously
-                                  final result = await Navigator.of(context).push<dynamic>(
-                                    MaterialPageRoute(
-                                      builder: (context) => ReminderAlertScreen(
-                                        reminder: entry.value,
-                                        reminderIndex: provider.reminders.indexOf(entry.value),
-                                      ),
-                                    ),
-                                  );
-                                  if (!mounted) return;
-                                  if (result == true) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Reminder ditandai selesai', style: AppTheme.body),
-                                        duration: const Duration(seconds: 2),
+                              padding: EdgeInsets.only(bottom: entry.key == filteredActiveReminders.length - 1 ? 0 : NaraSpacing.sm),
+                              child: NaraReveal(
+                                delay: Duration(milliseconds: 70 * entry.key),
+                                child: _ReminderCard(
+                                  reminder: entry.value,
+                                  accentColor: _accentColorForIndex(entry.key),
+                                  scheduleLabel: _scheduleLabel(context, entry.value),
+                                  onToggle: () => provider.toggleReminderStatus(provider.reminders.indexOf(entry.value)),
+                                  onDelete: () => provider.removeReminderAt(provider.reminders.indexOf(entry.value)),
+                                  onAlert: () async {
+                                    if (!context.mounted) return;
+                                    final reminderIndex = provider.reminders.indexOf(entry.value);
+                                    final mode = provider.normalizeReminderModePublic(
+                                      (entry.value['mode'] as String?) ??
+                                          (entry.value['type'] as String?) ??
+                                          'Notification',
+                                    );
+                                    if (mode == 'Notification') {
+                                      await provider.previewReminderAt(reminderIndex);
+                                      return;
+                                    }
+
+                                    final result = await Navigator.of(context).push<dynamic>(
+                                      MaterialPageRoute(
+                                        builder: (context) => ReminderAlertScreen(
+                                          reminder: entry.value,
+                                          reminderIndex: reminderIndex,
+                                        ),
                                       ),
                                     );
-                                    provider.toggleReminderStatus(provider.reminders.indexOf(entry.value));
-                                  }
-                                },
-                                onEdit: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => CreateReminderScreen(
-                                        editIndex: provider.reminders.indexOf(entry.value),
+                                    if (!context.mounted) return;
+                                    if (result == true) {
+                                      provider.toggleReminderStatus(reminderIndex);
+                                    }
+                                  },
+                                  onEdit: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => CreateReminderScreen(
+                                          editIndex: provider.reminders.indexOf(entry.value),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
                     ],
                     if (filteredCompletedReminders.isNotEmpty) ...[
-                      const SizedBox(height: 22),
-                      Text('Selesai', style: AppTheme.label.copyWith(color: AppTheme.outline)),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: NaraSpacing.xl),
+                      NaraReveal(
+                        delay: Duration(milliseconds: 260),
+                        child: _SectionTitle(label: I18n.t(context, 'done')),
+                      ),
+                      const SizedBox(height: NaraSpacing.sm),
                       ...filteredCompletedReminders.asMap().entries.map(
                             (entry) => Padding(
-                              padding: EdgeInsets.only(bottom: entry.key == filteredCompletedReminders.length - 1 ? 0 : 10),
-                              child: _ReminderCard(
-                                reminder: entry.value,
-                                accentColor: AppTheme.outlineVariant,
-                                isCompleted: true,
-                                onToggle: () => provider.toggleReminderStatus(provider.reminders.indexOf(entry.value)),
-                                onDelete: () => provider.removeReminderAt(provider.reminders.indexOf(entry.value)),
+                              padding: EdgeInsets.only(bottom: entry.key == filteredCompletedReminders.length - 1 ? 0 : NaraSpacing.sm),
+                              child: NaraReveal(
+                                delay: Duration(milliseconds: 60 * entry.key),
+                                child: _ReminderCard(
+                                  reminder: entry.value,
+                                  accentColor: NaraColors.textHint,
+                                  isCompleted: true,
+                                  scheduleLabel: _scheduleLabel(context, entry.value),
+                                  onToggle: () => provider.toggleReminderStatus(provider.reminders.indexOf(entry.value)),
+                                  onDelete: () => provider.removeReminderAt(provider.reminders.indexOf(entry.value)),
+                                ),
                               ),
                             ),
                           ),
                     ],
                     if (filteredActiveReminders.isEmpty && filteredCompletedReminders.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 48),
-                        child: GlassContainer(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            children: [
-                              Icon(Icons.notifications_none_rounded, size: 52, color: AppTheme.outline),
-                              const SizedBox(height: 12),
-                              Text('Belum ada reminder', style: AppTheme.h3),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Buat reminder baru untuk tampil seperti kartu di gambar.',
-                                textAlign: TextAlign.center,
-                                style: AppTheme.body.copyWith(color: AppTheme.outline),
-                              ),
-                            ],
+                      NaraReveal(
+                        delay: const Duration(milliseconds: 260),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 48),
+                          child: NaraEmptyState(
+                            icon: Icons.notifications_none_rounded,
+                            title: I18n.t(context, 'no_reminder'),
+                            message: I18n.t(context, 'no_reminder_msg'),
+                            accentColor: NaraColors.accentOrange,
                           ),
                         ),
                       ),
                   ]),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: NaraSpacing.lg)),
             ],
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'reminder_fab_add',
         onPressed: () => Navigator.pushNamed(context, '/create-reminder'),
-        backgroundColor: AppTheme.primaryContainer,
-        foregroundColor: AppTheme.onPrimaryContainer,
-        child: const Icon(Icons.add_rounded),
+        backgroundColor: NaraColors.primary,
+        foregroundColor: NaraColors.textOnPrimary,
+        child: Text('+', style: NaraTextStyles.h2.copyWith(color: NaraColors.textOnPrimary)),
       ),
     );
   }
 
   List<Map<String, dynamic>> _filterReminders(List<Map<String, dynamic>> reminders) {
-    if (_selectedFilter == 'Semua') {
+    if (_selectedFilter == 'all') {
       return reminders;
     }
 
     return reminders.where((reminder) {
-      final dateLabel = (reminder['date'] as String? ?? '').toLowerCase();
+      final scheduledAt = DateTime.tryParse(reminder['scheduledAt'] as String? ?? '');
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final todayEnd = todayStart.add(const Duration(days: 1));
+      final status = (reminder['status'] as String? ?? '').toLowerCase();
+      final isDone = status == 'selesai' || status == 'done';
+
       switch (_selectedFilter) {
-        case 'Hari ini':
-          return dateLabel.contains('hari ini') || dateLabel.contains('today');
-        case 'Mendatang':
-          return dateLabel.contains('besok') || dateLabel.contains('minggu') || dateLabel.contains('bulan');
-        case 'Selesai':
-          return (reminder['status'] as String? ?? '') == 'selesai';
+        case 'today':
+          if (scheduledAt != null) {
+            return !isDone && !scheduledAt.isBefore(todayStart) && scheduledAt.isBefore(todayEnd);
+          }
+          final dateLabel = (reminder['date'] as String? ?? '').toLowerCase();
+          return !isDone && (dateLabel.contains('hari ini') || dateLabel.contains('today'));
+        case 'upcoming':
+          if (scheduledAt != null) {
+            return !isDone && scheduledAt.isAfter(now);
+          }
+          final dateLabel = (reminder['date'] as String? ?? '').toLowerCase();
+          return !isDone && (dateLabel.contains('besok') || dateLabel.contains('tomorrow') || dateLabel.contains('minggu') || dateLabel.contains('bulan'));
+        case 'done':
+          return isDone;
         default:
           return true;
       }
@@ -269,109 +241,68 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
 
   Color _accentColorForIndex(int index) {
     const colors = [
-      AppTheme.secondary,
-      AppTheme.primaryContainer,
-      AppTheme.danger,
-      AppTheme.success,
+      NaraColors.accentOrange,
+      NaraColors.primary,
+      NaraColors.danger,
+      NaraColors.success,
     ];
     return colors[index % colors.length];
   }
+
+  String _scheduleLabel(BuildContext context, Map<String, dynamic> reminder) {
+    final scheduledAt = DateTime.tryParse(reminder['scheduledAt'] as String? ?? '');
+    if (scheduledAt == null) {
+      return I18n.t(context, 'scheduled');
+    }
+    // The main subtitle already shows day/date/time. Avoid duplicate lines.
+    return '';
+  }
 }
 
-class _HeroReminderCard extends StatelessWidget {
-  final Map<String, dynamic>? reminder;
-  final int? reminderIndex;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDismiss;
+class _ReminderHeader extends StatelessWidget {
+  final VoidCallback onCreate;
 
-  const _HeroReminderCard({
-    required this.reminder,
-    this.reminderIndex,
-    this.onEdit,
-    this.onDismiss,
-  });
+  const _ReminderHeader({required this.onCreate});
 
   @override
   Widget build(BuildContext context) {
-    final title = reminder?['title'] as String? ?? 'Bayar tagihan listrik';
-    final date = reminder?['date'] as String? ?? 'Besok, 20:00';
-    final tag = reminder?['type'] as String? ?? 'Peringatan Aktif';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.surfaceContainerHigh.withValues(alpha: 0.95),
-            AppTheme.surfaceContainer.withValues(alpha: 0.95),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryContainer.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.access_time_rounded, size: 16, color: AppTheme.primary),
-              const SizedBox(width: 8),
+              Text('Reminder', style: NaraTextStyles.h1),
+              const SizedBox(height: NaraSpacing.xs),
               Text(
-                'BERIKUTNYA DALAM 2 JAM',
-                style: AppTheme.label.copyWith(color: AppTheme.outline, letterSpacing: 0.4),
+                I18n.t(context, 'manage_schedule'),
+                style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(title, style: AppTheme.h2.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(date, style: AppTheme.body.copyWith(color: AppTheme.onSurfaceVariant)),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _TagPill(label: tag),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_rounded, size: 16),
-                label: Text('Edit', style: AppTheme.label.copyWith(color: AppTheme.onSurface)),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
-                  foregroundColor: AppTheme.onSurface,
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onDismiss,
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: Text('Dismiss', style: AppTheme.label.copyWith(color: AppTheme.onSurface)),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
-                  foregroundColor: AppTheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String label;
+
+  const _SectionTitle({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(label, style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary));
   }
 }
 
 class _ReminderCard extends StatelessWidget {
   final Map<String, dynamic> reminder;
   final Color accentColor;
+  final String scheduleLabel;
   final bool isCompleted;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
@@ -381,114 +312,160 @@ class _ReminderCard extends StatelessWidget {
   const _ReminderCard({
     required this.reminder,
     required this.accentColor,
+    required this.scheduleLabel,
     required this.onToggle,
     required this.onDelete,
     this.onAlert,
     this.onEdit,
     this.isCompleted = false,
   });
-  Widget build(BuildContext context) {
-    final title = reminder['title'] as String? ?? '-';
-    final date = reminder['date'] as String? ?? '-';
-    final note = reminder['note'] as String? ?? (reminder['type'] as String? ?? '');
-    final subtitle = reminder['subtitle'] as String? ?? date;
-    final icon = reminder['icon'] as IconData? ?? Icons.notifications_active_rounded;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(icon, color: accentColor),
-        ),
-        title: Text(
-          title,
-          style: AppTheme.label.copyWith(
-            color: isCompleted ? AppTheme.outline : AppTheme.onSurface,
-            decoration: isCompleted ? TextDecoration.lineThrough : null,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(subtitle, style: AppTheme.body.copyWith(color: AppTheme.outline, fontSize: 12)),
-              if (note.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _TagPill(label: note, compact: true, backgroundColor: AppTheme.surfaceContainer),
-              ],
-            ],
-          ),
-        ),
-        trailing: Wrap(
-          spacing: 8,
-          children: [
-            if (!isCompleted && onAlert != null)
-              IconButton(
-                onPressed: onAlert,
-                icon: const Icon(Icons.play_circle_outline_rounded, color: AppTheme.tertiary),
-              ),
-            if (!isCompleted && onEdit != null)
-              IconButton(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, color: AppTheme.primaryContainer),
-              ),
-            IconButton(
-              onPressed: onToggle,
-              icon: Icon(
-                isCompleted ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
-                color: isCompleted ? AppTheme.outline : AppTheme.success,
-              ),
-            ),
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.danger),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TagPill extends StatelessWidget {
-  final String label;
-  final bool compact;
-  final Color? backgroundColor;
-
-  const _TagPill({
-    required this.label,
-    this.compact = false,
-    this.backgroundColor,
-  });
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: compact ? 5 : 7),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? AppTheme.tertiary.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-      ),
-      child: Text(
-        label,
-        style: AppTheme.label.copyWith(
-          color: backgroundColor == null ? AppTheme.tertiary : AppTheme.outline,
-          fontSize: compact ? 11 : 12,
-        ),
+    final title = reminder['title'] as String? ?? '-';
+    final date = _displayDate(context, reminder);
+    final note = (reminder['note'] as String? ?? '').trim();
+    final modeLabel = _modeLabel(context, reminder);
+    final subtitle = date;
+    final icon = reminder['icon'] as IconData? ?? Icons.notifications_active_rounded;
+
+    return NaraCard(
+      borderRadius: NaraRadius.lg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(NaraRadius.md),
+                ),
+                child: Icon(icon, color: accentColor),
+              ),
+              const SizedBox(width: NaraSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: NaraTextStyles.label.copyWith(
+                        color: isCompleted ? NaraColors.textSecondary : NaraColors.textPrimary,
+                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(subtitle, style: NaraTextStyles.bodySmall),
+                    const SizedBox(height: 2),
+                    if (scheduleLabel.trim().isNotEmpty)
+                      Text(
+                        scheduleLabel,
+                        style: NaraTextStyles.bodySmall.copyWith(
+                          color: NaraColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              NaraBadge(label: isCompleted ? I18n.t(context, 'done') : I18n.t(context, 'waiting')),
+            ],
+          ),
+          const SizedBox(height: NaraSpacing.md),
+          Wrap(
+            spacing: NaraSpacing.xs,
+            runSpacing: NaraSpacing.xs,
+            children: [
+              NaraChip(label: modeLabel, selected: false),
+              if (note.isNotEmpty) NaraChip(label: note, selected: false),
+            ],
+          ),
+          const SizedBox(height: NaraSpacing.md),
+          Wrap(
+            spacing: NaraSpacing.xs,
+            runSpacing: NaraSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (!isCompleted && onAlert != null)
+                NaraSecondaryButton(
+                  label: 'Tes',
+                  onPressed: onAlert!,
+                  icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: NaraColors.primary),
+                  fullWidth: false,
+                ),
+              if (!isCompleted && onEdit != null)
+                NaraSecondaryButton(
+                  label: 'Edit',
+                  onPressed: onEdit!,
+                  icon: const Icon(Icons.edit_outlined, size: 16, color: NaraColors.primary),
+                  fullWidth: false,
+                ),
+              IconButton(
+                onPressed: onToggle,
+                icon: Icon(
+                  isCompleted ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
+                  color: isCompleted ? NaraColors.textSecondary : NaraColors.success,
+                ),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, color: NaraColors.danger),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+
+  String _displayDate(BuildContext context, Map<String, dynamic> reminder) {
+    final scheduledAt = DateTime.tryParse(reminder['scheduledAt'] as String? ?? '');
+    if (scheduledAt == null) {
+      return I18n.translateRelativeDate(context, reminder['date'] as String? ?? '-');
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(scheduledAt.year, scheduledAt.month, scheduledAt.day);
+    final dayDiff = target.difference(today).inDays;
+    final timeText = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay(hour: scheduledAt.hour, minute: scheduledAt.minute),
+      alwaysUse24HourFormat: true,
+    );
+    if (dayDiff == 0) {
+      return '${I18n.t(context, 'today')} $timeText';
+    }
+    if (dayDiff == 1) {
+      return '${I18n.t(context, 'tomorrow')} $timeText';
+    }
+
+    final weekdayName = _weekdayName(context, scheduledAt.weekday);
+    final dateText = MaterialLocalizations.of(context).formatShortDate(scheduledAt);
+    return '$weekdayName, $dateText $timeText';
+  }
+
+  String _weekdayName(BuildContext context, int weekday) {
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    const labelsId = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const labelsEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final index = (weekday - 1).clamp(0, 6);
+    return isEnglish ? labelsEn[index] : labelsId[index];
+  }
+
+  String _modeLabel(BuildContext context, Map<String, dynamic> reminder) {
+    final rawMode =
+        (reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification';
+    switch (rawMode) {
+      case 'Loud Alarm':
+      case 'Alarm Keras':
+      case 'Fullscreen Alert':
+        return I18n.t(context, 'reminder_mode_loud_alarm');
+      case 'Fake Call':
+        return I18n.t(context, 'reminder_mode_fake_call');
+      default:
+        return I18n.t(context, 'reminder_mode_notification');
+    }
+  }
 }
+

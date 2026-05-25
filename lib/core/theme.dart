@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// Barrel file - re-exports all theme components for backward compatibility
+export 'theme/nara_colors.dart';
+export 'theme/nara_text_styles.dart';
+export 'theme/nara_spacing.dart';
+export 'theme/nara_radius.dart';
+export 'theme/nara_shadows.dart';
+export 'theme/nara_theme.dart';
+
 class AppTheme {
   static const Color background = Color(0xFF131319);
   static const Color surface = Color(0xFF131319);

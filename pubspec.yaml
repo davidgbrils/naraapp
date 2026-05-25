@@ -1,7 +1,7 @@
 name: nara
 description: "NARA - Smart Voice Life Assistant"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.5
@@ -9,12 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
   provider: ^6.1.2
   shared_preferences: ^2.2.2
   flutter_local_notifications: ^17.0.0
   timezone: ^0.9.0
+  flutter_timezone: ^4.1.1
+  file_picker: ^8.1.2
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
+  share_plus: ^10.0.2
+  open_filex: ^4.7.0
+  pdf: ^3.11.1
+  flutter_ringtone_player: ^4.0.0+4
+  speech_to_text: ^7.3.0
+  flutter_tts: ^4.2.3
 
 dev_dependencies:
   flutter_test:

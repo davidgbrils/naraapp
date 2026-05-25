@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../core/theme.dart';
+import '../core/theme/nara_colors.dart';
+import '../core/theme/nara_radius.dart';
+import '../core/theme/nara_spacing.dart';
+import '../core/theme/nara_text_styles.dart';
 import '../providers/app_provider.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -54,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: NaraColors.background,
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -72,16 +74,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppTheme.primaryContainer,
-                            AppTheme.primary.withValues(alpha: 0.5),
+                            NaraColors.primary,
+                            NaraColors.primaryLight,
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(NaraRadius.xl),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryContainer.withValues(alpha: 0.4),
+                            color: NaraColors.primary.withValues(alpha: 0.35),
                             blurRadius: 30,
                             spreadRadius: 5,
                           ),
@@ -90,23 +92,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       child: const Icon(
                         Icons.mic_rounded,
                         size: 60,
-                        color: AppTheme.onPrimary,
+                        color: NaraColors.textOnPrimary,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: NaraSpacing.xl),
                     Text(
                       'NARA',
-                      style: GoogleFonts.nunito(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.onSurface,
-                        letterSpacing: 4,
-                      ),
+                      style: NaraTextStyles.h1.copyWith(fontSize: 40, letterSpacing: 4),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: NaraSpacing.sm),
                     Text(
                       'Smart Voice Life Assistant',
-                      style: AppTheme.label.copyWith(color: AppTheme.outline),
+                      style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
                     ),
                   ],
                 ),
@@ -118,3 +115,4 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
   }
 }
+

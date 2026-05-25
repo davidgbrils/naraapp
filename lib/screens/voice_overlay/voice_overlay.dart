@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme.dart';
+import '../../core/i18n.dart';
+import '../../core/theme/nara_colors.dart';
+import '../../core/theme/nara_radius.dart';
+import '../../core/theme/nara_spacing.dart';
+import '../../core/theme/nara_text_styles.dart';
 import '../../providers/app_provider.dart';
 
 class VoiceWaveform extends StatefulWidget {
@@ -84,8 +88,8 @@ class _VoiceWaveformState extends State<VoiceWaveform> with TickerProviderStateM
                 width: 6,
                 height: height,
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: opacity),
-                  borderRadius: BorderRadius.circular(3),
+                  color: NaraColors.primary.withValues(alpha: opacity),
+                  borderRadius: BorderRadius.circular(NaraRadius.xs),
                 ),
               );
             },
@@ -111,46 +115,61 @@ class VoiceOverlay extends StatelessWidget {
           child: GestureDetector(
             onTap: () => provider.stopListening(),
             child: Container(
-              color: AppTheme.background.withValues(alpha: 0.95),
+              color: NaraColors.background.withValues(alpha: 0.95),
               child: SafeArea(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Status text
                     Text(
-                      provider.isListening ? 'Mendengarkan...' : 'Memproses...',
-                      style: AppTheme.h2,
+                      provider.isListening ? I18n.t(context, 'listening') : I18n.t(context, 'processing'),
+                      style: NaraTextStyles.h2,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: NaraSpacing.sm),
                     Text(
                       provider.isListening 
-                        ? 'Katakan sesuatu kepada NARA'
-                        : 'Sedang memahami permintaanmu',
-                      style: AppTheme.body.copyWith(color: AppTheme.onSurfaceVariant),
+                        ? I18n.t(context, 'say_something_to_nara')
+                        : I18n.t(context, 'understanding_request'),
+                      style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
                     ),
-                    const SizedBox(height: 40),
+                    if (provider.voiceErrorMessage.isNotEmpty) ...[
+                      const SizedBox(height: NaraSpacing.sm),
+                      Text(
+                        provider.voiceErrorMessage,
+                        style: NaraTextStyles.caption.copyWith(color: NaraColors.danger),
+                        textAlign: TextAlign.center,
+                      ),
+                    ] else if (provider.lastIntent.trim().isNotEmpty) ...[
+                      const SizedBox(height: NaraSpacing.sm),
+                      Text(
+                        '"${provider.lastIntent.trim()}"',
+                        style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: NaraSpacing.xxl),
                     
                     // Voice visualization
                     VoiceWaveform(isAnimating: provider.isListening),
                     
-                    const SizedBox(height: 40),
+                    const SizedBox(height: NaraSpacing.xxl),
                     
                     // Stop button
                     GestureDetector(
                       onTap: () => provider.stopListening(),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: NaraSpacing.xl, vertical: NaraSpacing.md),
                         decoration: BoxDecoration(
-                          color: AppTheme.danger.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.5)),
+                          color: NaraColors.danger.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(NaraRadius.pill),
+                          border: Border.all(color: NaraColors.danger.withValues(alpha: 0.35)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.stop_rounded, color: AppTheme.danger, size: 20),
-                            const SizedBox(width: 8),
-                            Text('Batal', style: AppTheme.label.copyWith(color: AppTheme.danger)),
+                            Icon(Icons.stop_rounded, color: NaraColors.danger, size: 20),
+                            const SizedBox(width: NaraSpacing.sm),
+                            Text(I18n.t(context, 'cancel'), style: NaraTextStyles.label.copyWith(color: NaraColors.danger)),
                           ],
                         ),
                       ),
