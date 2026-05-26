@@ -148,13 +148,24 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               final subtitle = dueDate.isNotEmpty
                   ? '${I18n.t(context, 'due_date')}: $dueDate'
                   : _formatCreatedAtLabel(context, createdAt);
-              final title = isDebtOwed ? 'Utang (Saya) kepada $person' : 'Piutang (Saya) dari $person';
+              final isEnglish = provider.language == 'English';
+              final title = isDebtOwed
+                  ? (isEnglish ? 'Debt (Mine) to $person' : 'Utang (Saya) kepada $person')
+                  : (isEnglish ? 'Receivable (Mine) from $person' : 'Piutang (Saya) dari $person');
               final h1Raw = (debt['debtReminderH1At'] as String?) ?? '';
               final h0Raw = (debt['debtReminderH0At'] as String?) ?? '';
-              final scheduleInfo = (h1Raw.isEmpty && h0Raw.isEmpty)
-                  ? 'Jadwal H-1/H-0: belum diatur'
-                  : 'Jadwal H-1: ${h1Raw.isEmpty ? '-' : h1Raw} | H-0: ${h0Raw.isEmpty ? '-' : h0Raw}';
-              final detail = '${status == 'lunas' ? 'Status: Lunas' : 'Status: Belum lunas'}\n$scheduleInfo';
+              final h1At = DateTime.tryParse(h1Raw);
+              final h0At = DateTime.tryParse(h0Raw);
+              final scheduleInfo = _formatDebtScheduleInfo(
+                context: context,
+                h1At: h1At,
+                h0At: h0At,
+                isEnglish: isEnglish,
+              );
+              final statusLabel = status == 'lunas'
+                  ? (isEnglish ? 'Paid' : 'Lunas')
+                  : (isEnglish ? 'Unpaid' : 'Belum lunas');
+              final detail = 'Status: $statusLabel\n$scheduleInfo';
               final id = 'debt:${debt['debtId'] ?? itemIndex}:$status:$dueDate';
               return _NotificationItem(
                 id: id,
@@ -164,7 +175,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 color: isDebtOwed ? NaraColors.danger : NaraColors.success,
                 title: title,
                 subtitle: subtitle,
-                badge: 'Utang/Piutang',
+                badge: isEnglish ? 'Debt/Receivable' : 'Utang/Piutang',
                 detail: detail,
                 sortTime: _extractDebtSortTime(debt),
               );
@@ -254,13 +265,13 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _filterChip('Semua', _NotificationFilter.all),
+                    _filterChip(I18n.t(context, 'all'), _NotificationFilter.all),
                     const SizedBox(width: NaraSpacing.sm),
-                    _filterChip('Reminder', _NotificationFilter.reminder),
+                    _filterChip(I18n.t(context, 'reminder'), _NotificationFilter.reminder),
                     const SizedBox(width: NaraSpacing.sm),
-                    _filterChip('Utang/Piutang', _NotificationFilter.debt),
+                    _filterChip(I18n.t(context, 'debt_receivable'), _NotificationFilter.debt),
                     const SizedBox(width: NaraSpacing.sm),
-                    _filterChip('Transaksi', _NotificationFilter.transaction),
+                    _filterChip(I18n.t(context, 'transaction'), _NotificationFilter.transaction),
                   ],
                 ),
               ),
@@ -383,6 +394,30 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       alwaysUse24HourFormat: true,
     );
     return '$dateLabel • $timeLabel';
+  }
+
+  String _formatDebtScheduleInfo({
+    required BuildContext context,
+    required DateTime? h1At,
+    required DateTime? h0At,
+    required bool isEnglish,
+  }) {
+    String fmt(DateTime dt) {
+      final date = MaterialLocalizations.of(context).formatMediumDate(dt);
+      final time = MaterialLocalizations.of(context).formatTimeOfDay(
+        TimeOfDay(hour: dt.hour, minute: dt.minute),
+        alwaysUse24HourFormat: true,
+      );
+      return '$date • $time';
+    }
+
+    final items = <String>[];
+    if (h1At != null) items.add('H-1: ${fmt(h1At)}');
+    if (h0At != null) items.add('H-0: ${fmt(h0At)}');
+    if (items.isEmpty) {
+      return isEnglish ? 'Schedule D-1/D-0: not set' : 'Jadwal H-1/H-0: belum diatur';
+    }
+    return isEnglish ? 'Scheduled ${items.join(' | ')}' : 'Terjadwal ${items.join(' | ')}';
   }
 
   void _showNotificationDetail(BuildContext context, _NotificationItem item) {

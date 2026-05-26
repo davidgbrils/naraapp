@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'services/telemetry_service.dart';
 import 'core/theme/nara_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -47,6 +50,23 @@ Route<dynamic> _buildRoute(RouteSettings settings, WidgetBuilder builder) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await TelemetryService.instance.init();
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    TelemetryService.instance.trackError(
+      details.exception,
+      details.stack ?? StackTrace.current,
+      hint: 'flutter_error',
+    );
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    TelemetryService.instance.trackError(
+      error,
+      stack,
+      hint: 'platform_dispatcher',
+    );
+    return false;
+  };
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/i18n.dart';
 import '../../core/formatters.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
@@ -37,8 +38,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final activeProvider = context.watch<AppProvider>();
-    final isEnglish = activeProvider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, activeProvider, idText, enText);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -163,8 +163,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   Widget _buildExpenseTab(BuildContext context, AppProvider provider) {
-    final isEnglish = provider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredExpenses = _filterTransactions(
       provider.expenses,
@@ -265,7 +264,15 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${tr('Anggaran', 'Budget')}: ${formatRupiah(budget)}', style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12)),
+                    Expanded(
+                      child: Text(
+                        '${tr('Anggaran', 'Budget')}: ${formatRupiah(budget)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text('${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%', style: AppTheme.label.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold)),
                   ],
                 ),
@@ -347,7 +354,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(tr('Riwayat', 'History'), style: AppTheme.h3),
+              Expanded(
+                child: Text(
+                  tr('Riwayat', 'History'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.h3,
+                ),
+              ),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
                 child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
@@ -384,8 +398,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   Widget _buildIncomeTab(BuildContext context, AppProvider provider) {
-    final isEnglish = provider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredIncomes = _filterTransactions(
       provider.incomes,
@@ -487,7 +500,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       child: Column(
                         children: [
                           _CategoryLegendItem(label: tr('Gaji', 'Salary'), percentage: '60%', color: AppTheme.primary),
-                          _CategoryLegendItem(label: 'Freelance', percentage: '25%', color: AppTheme.success),
+                          _CategoryLegendItem(label: tr('Freelance', 'Freelance'), percentage: '25%', color: AppTheme.success),
                           _CategoryLegendItem(label: tr('Investasi', 'Investment'), percentage: '10%', color: AppTheme.tertiary),
                           _CategoryLegendItem(label: tr('Lainnya', 'Others'), percentage: '5%', color: AppTheme.outline),
                         ],
@@ -502,7 +515,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(tr('Riwayat Pemasukan', 'Income History'), style: AppTheme.h3),
+              Expanded(
+                child: Text(
+                  tr('Riwayat Pemasukan', 'Income History'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.h3,
+                ),
+              ),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
                 child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
@@ -540,7 +560,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
   Widget _buildDebtTab(BuildContext context, AppProvider provider) {
     final isEnglish = provider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     final isCompact = MediaQuery.of(context).size.width < 380;
     final debts = provider.debts;
     final filteredDebts = debts.where((debt) {
@@ -859,8 +879,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   void _openQuickActionSheet() {
-    final isEnglish = context.read<AppProvider>().language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    final activeProvider = context.read<AppProvider>();
+    String tr(String idText, String enText) =>
+        _tr(context, activeProvider, idText, enText);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -960,7 +981,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required int remainingAmount,
   }) {
     final isEnglish = provider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     final amountController = TextEditingController();
 
     showDialog<void>(
@@ -1136,8 +1157,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required int paymentAmount,
     required TextEditingController amountController,
   }) {
-    final isEnglish = provider.language == 'English';
-    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     showDialog<void>(
       context: context,
       builder: (confirmContext) {
@@ -1153,7 +1173,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               'Confirm payment amount Rp ${_formatCurrency(paymentAmount)}',
             ),
             child: Text(
-              'Bayar sebesar Rp ${_formatCurrency(paymentAmount)}?',
+              tr(
+                'Bayar sebesar Rp ${_formatCurrency(paymentAmount)}?',
+                'Pay Rp ${_formatCurrency(paymentAmount)}?',
+              ),
               style: AppTheme.body,
             ),
           ),
@@ -1196,7 +1219,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               child: Semantics(
                 button: true,
                 enabled: true,
-                label: 'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
+                label: tr(
+                  'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
+                  'Confirm payment amount Rp ${_formatCurrency(paymentAmount)}',
+                ),
                 child: Text(tr('Bayar', 'Pay'), style: AppTheme.label),
               ),
             ),
@@ -1307,6 +1333,102 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         return Icons.shopping_bag_rounded;
       default:
         return Icons.receipt_long_rounded;
+    }
+  }
+
+  String _tr(
+    BuildContext context,
+    AppProvider provider,
+    String idText,
+    String enText,
+  ) {
+    final key = _transactionI18nKey(idText);
+    if (key == null) {
+      return provider.language == 'English' ? enText : idText;
+    }
+    final code = provider.language == 'English' ? 'en' : 'id';
+    return I18n.tByCode(code, key);
+  }
+
+  String? _transactionI18nKey(String idText) {
+    switch (idText) {
+      case 'Aksi cepat':
+      case 'Aksi Cepat':
+        return 'quick_action';
+      case 'Keuangan':
+        return 'finance';
+      case 'Lihat pengingat':
+      case 'Buka Reminder':
+        return 'see_notifications';
+      case 'Pengeluaran':
+        return 'expenses';
+      case 'Pemasukan':
+        return 'income';
+      case 'Utang/Piutang':
+        return 'debt_receivable_tab';
+      case 'Tambah transaksi':
+        return 'add_transaction';
+      case 'Lainnya':
+        return 'cat_others';
+      case 'Bulan Ini':
+        return 'this_month';
+      case 'Minggu Ini':
+        return 'this_week';
+      case 'Tahun Ini':
+        return 'this_year';
+      case 'Pilih Tanggal':
+      case 'Custom':
+        return 'filter_custom_date';
+      case 'Total Pengeluaran':
+        return 'total_expense';
+      case 'Anggaran':
+        return 'budget';
+      case 'Kategori':
+        return 'expense_categories';
+      case 'Belum ada pengeluaran':
+        return 'no_expense';
+      case 'Riwayat':
+        return 'history';
+      case 'Lihat Semua':
+        return 'view_all';
+      case 'Total Pemasukan':
+        return 'total_income';
+      case 'Sumber Pemasukan':
+        return 'source_income';
+      case 'Gaji':
+        return 'cat_salary';
+      case 'Freelance':
+        return 'cat_freelance';
+      case 'Investasi':
+        return 'cat_investment';
+      case 'Riwayat Pemasukan':
+        return 'income_history';
+      case 'Saya Berhutang':
+        return 'debt_mine';
+      case 'Piutang Saya':
+        return 'receivable_mine';
+      case 'Belum Lunas':
+        return 'debt_unpaid';
+      case 'Lunas':
+        return 'debt_paid';
+      case 'Belum ada data utang/piutang pada filter ini':
+        return 'no_debt_filter';
+      case 'Bayar Sebagian':
+        return 'pay_partial';
+      case 'Tandai Lunas':
+        return 'mark_paid';
+      case 'Utang sudah ditandai lunas':
+        return 'debt_marked_paid';
+      case 'Batal':
+        return 'cancel';
+      case 'Lanjut':
+        return 'continue';
+      case 'Pembayaran berhasil':
+        return 'payment_success';
+      case 'Bayar':
+        return 'pay';
+      default:
+        return null;
     }
   }
 }

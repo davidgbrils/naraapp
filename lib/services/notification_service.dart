@@ -27,6 +27,7 @@ class NotificationService {
   }
 
   NotificationService._internal();
+  static bool verboseReminderLogs = false;
 
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -160,7 +161,7 @@ class NotificationService {
       final pending = await _flutterLocalNotificationsPlugin
           .pendingNotificationRequests();
       final isRegistered = pending.any((request) => request.id == id);
-      if (!kReleaseMode) {
+      if (!kReleaseMode && verboseReminderLogs) {
         debugPrint(
           'Reminder schedule id=$id mode=$mode canExact=$canExact target=$scheduledDate registered=$isRegistered pending=${pending.length}',
         );

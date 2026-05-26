@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
@@ -8,11 +9,40 @@ import 'dart:io';
 import '../core/formatters.dart';
 import '../core/i18n.dart';
 import '../services/notification_service.dart';
+import '../services/telemetry_service.dart';
 import '../services/voice_service.dart';
 
 class AppProvider extends ChangeNotifier {
+  static bool verboseLogs = false;
+
   AppProvider({VoiceServiceContract? voiceService})
       : _voiceService = voiceService ?? VoiceService();
+
+  void _log(String message) {
+    if (kDebugMode && verboseLogs) {
+      debugPrint(message);
+    }
+  }
+
+  void _trackEvent(String name, {Map<String, Object?> extras = const {}}) {
+    unawaited(TelemetryService.instance.trackEvent(name, extras: extras));
+  }
+
+  void _trackError(
+    Object error,
+    StackTrace stackTrace, {
+    String? hint,
+    Map<String, Object?> extras = const {},
+  }) {
+    unawaited(
+      TelemetryService.instance.trackError(
+        error,
+        stackTrace,
+        hint: hint,
+        extras: extras,
+      ),
+    );
+  }
 
   bool _isOnboardingComplete = false;
   final bool _isLoggedIn = false;
@@ -308,6 +338,9 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> simulateVoiceCommand(String commandText) async {
     if (!_voiceBetaEnabled) {
+      _trackEvent('voice_command_failed', extras: {
+        'reason': 'voice_beta_disabled',
+      });
       _voiceErrorMessage = I18n.tByCode(
         _language == 'English' ? 'en' : 'id',
         'voice_beta_disabled_settings',
@@ -324,6 +357,9 @@ class AppProvider extends ChangeNotifier {
 
     final isEnglish = _language == 'English';
     if (_pendingVoiceAction != null) {
+      _trackEvent('voice_command_success', extras: {
+        'recognized_type': _pendingVoiceAction?['type']?.toString() ?? 'unknown',
+      });
       await _voiceService.speak(
         isEnglish
             ? 'Command detected. Please confirm action on screen.'
@@ -338,6 +374,9 @@ class AppProvider extends ChangeNotifier {
           : 'Perintah belum dikenali.',
       speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
     );
+    _trackEvent('voice_command_failed', extras: {
+      'reason': 'not_recognized',
+    });
   }
 
   Map<String, dynamic>? previewVoiceCommand(String commandText) {
@@ -481,9 +520,18 @@ class AppProvider extends ChangeNotifier {
     final action = _pendingVoiceAction;
     _pendingVoiceAction = null;
     notifyListeners();
-    if (!approved || action == null) return false;
+    if (!approved || action == null) {
+      _trackEvent('voice_command_failed', extras: {
+        'reason': !approved ? 'user_rejected' : 'empty_action',
+      });
+      return false;
+    }
     final validation = validateVoiceAction(action);
     if (validation['isValid'] != true) {
+      _trackEvent('voice_command_failed', extras: {
+        'reason': 'validation_failed',
+        'type': action['type']?.toString() ?? 'unknown',
+      });
       _voiceErrorMessage = validation['message'] as String? ??
           (_language == 'English'
               ? 'Voice command data is invalid.'
@@ -501,6 +549,7 @@ class AppProvider extends ChangeNotifier {
         'time': _language == 'English' ? 'Today' : 'Hari ini',
         'icon': 'shopping_bag',
       });
+      _trackEvent('voice_command_success', extras: {'type': 'expense'});
       return true;
     }
     if (type == 'income') {
@@ -510,6 +559,7 @@ class AppProvider extends ChangeNotifier {
         'category': action['category'] as String? ?? 'Lainnya',
         'time': _language == 'English' ? 'Today' : 'Hari ini',
       });
+      _trackEvent('voice_command_success', extras: {'type': 'income'});
       return true;
     }
     if (type == 'debt') {
@@ -522,6 +572,7 @@ class AppProvider extends ChangeNotifier {
         'dueDate': dueDate,
         'note': action['note'] as String? ?? '',
       });
+      _trackEvent('voice_command_success', extras: {'type': 'debt'});
       return true;
     }
     if (type == 'debt_payment') {
@@ -529,6 +580,7 @@ class AppProvider extends ChangeNotifier {
       final amount = (action['amount'] as int?) ?? 0;
       if (debtId == null || amount <= 0) return false;
       updateDebtPaymentById(debtId, amount);
+      _trackEvent('voice_command_success', extras: {'type': 'debt_payment'});
       return true;
     }
     if (type == 'reminder') {
@@ -550,8 +602,13 @@ class AppProvider extends ChangeNotifier {
         'soundName': null,
         'status': 'menunggu',
       });
+      _trackEvent('voice_command_success', extras: {'type': 'reminder'});
       return true;
     }
+    _trackEvent('voice_command_failed', extras: {
+      'reason': 'unknown_type',
+      'type': type ?? 'null',
+    });
     return false;
   }
 
@@ -1111,6 +1168,12 @@ class AppProvider extends ChangeNotifier {
     debt['status'] = nextPaidAmount >= totalAmount ? 'lunas' : 'berjalan';
     if (appliedPayment > 0) {
       _appendDebtPaymentHistory(debt, appliedPayment, isFinalSettlement: nextPaidAmount >= totalAmount);
+      _trackEvent('debt_payment_saved', extras: {
+        'debt_id': debt['debtId'] as Object? ?? index,
+        'payment_amount': appliedPayment,
+        'remaining_amount': (totalAmount - nextPaidAmount).clamp(0, totalAmount),
+        'is_final_settlement': nextPaidAmount >= totalAmount,
+      });
     }
     _saveDebts();
     notifyListeners();
@@ -1155,6 +1218,11 @@ class AppProvider extends ChangeNotifier {
     _ensureReminderNotificationId(reminder);
     _reminders.insert(0, reminder);
     _scheduleReminderNotification(reminder);
+    _trackEvent('reminder_created', extras: {
+      'reminder_id': reminder['notificationId'] as Object? ?? -1,
+      'mode': (reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification',
+      'has_repeat': reminder['repeatEnabled'] as Object? ?? false,
+    });
     _saveReminders();
     notifyListeners();
   }
@@ -1466,8 +1534,9 @@ class AppProvider extends ChangeNotifier {
           body: body,
         );
       }
-    } catch (e) {
-      debugPrint('Error scheduling notification: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'schedule_reminder_notification');
+      _log('Error scheduling notification: $e');
     }
   }
 
@@ -1539,8 +1608,9 @@ class AppProvider extends ChangeNotifier {
       if (hour == null || minute == null) return null;
 
       return DateTime(year, month, day, hour, minute);
-    } catch (e) {
-      debugPrint('Error parsing date: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'parse_date_string');
+      _log('Error parsing date: $e');
       return null;
     }
   }
@@ -1701,6 +1771,9 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
+  @visibleForTesting
+  Future<void> runReminderFallbackCheckForTest() => _runReminderFallbackCheck();
+
   Future<void> rescheduleAllReminders() async {
     for (int i = 0; i < _reminders.length; i++) {
       final reminder = _reminders[i];
@@ -1818,6 +1891,11 @@ class AppProvider extends ChangeNotifier {
     reminder['scheduledAt'] = snoozeDate.toIso8601String();
     reminder['status'] = 'menunggu';
     reminder['snoozedUntil'] = snoozeDate.toIso8601String();
+    _trackEvent('reminder_snoozed', extras: {
+      'reminder_id': reminder['notificationId'] as Object? ?? index,
+      'seconds': seconds,
+      'mode': (reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification',
+    });
     _notificationService.cancelReminder(notificationId);
     _notificationService.cancelPopupAlarm(notificationId);
     final mode = _normalizeReminderMode(
@@ -1939,8 +2017,9 @@ class AppProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(data.map(_serializeMap).toList());
       await prefs.setString(key, jsonString);
-    } catch (e) {
-      debugPrint('Error saving $key: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'save_json_list', extras: {'key': key});
+      _log('Error saving $key: $e');
     }
   }
 
@@ -2032,8 +2111,9 @@ class AppProvider extends ChangeNotifier {
       if (_reminders.isNotEmpty) {
         _normalizeReminderNotificationIds();
       }
-    } catch (e) {
-      debugPrint('Error loading app data: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'load_app_data');
+      _log('Error loading app data: $e');
     }
   }
 
@@ -2056,8 +2136,9 @@ class AppProvider extends ChangeNotifier {
         await _saveReminders();
       }
       notifyListeners();
-    } catch (e) {
-      debugPrint('Error loading reminders: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'load_reminders');
+      _log('Error loading reminders: $e');
     }
   }
 
@@ -2201,8 +2282,9 @@ class AppProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_onboardingKey, _isOnboardingComplete);
-    } catch (e) {
-      debugPrint('Error saving onboarding state: $e');
+    } catch (e, st) {
+      _trackError(e, st, hint: 'save_onboarding_state');
+      _log('Error saving onboarding state: $e');
     }
   }
 }

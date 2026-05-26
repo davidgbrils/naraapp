@@ -292,7 +292,13 @@ class _ReminderAlertLauncherState extends State<_ReminderAlertLauncher> {
       builder: (context, provider, _) {
         final activeAlert = provider.activeAlert;
         final reminderIndex = activeAlert?['index'] as int?;
+        final mode = (activeAlert?['mode'] as String?) ?? 'Notification';
         if (!_isShowing && activeAlert != null && reminderIndex != _lastReminderIndex) {
+          if (mode == 'Fake Call' || mode == 'Loud Alarm' || mode == 'Fullscreen Alert') {
+            // Avoid double-popup: these modes already use system-level alarm/full-screen flow.
+            provider.dismissAlert();
+            return const SizedBox.shrink();
+          }
           _lastReminderIndex = reminderIndex;
           _isShowing = true;
           WidgetsBinding.instance.addPostFrameCallback((_) async {

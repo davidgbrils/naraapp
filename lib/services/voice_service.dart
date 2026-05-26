@@ -21,7 +21,14 @@ abstract class VoiceServiceContract {
 class VoiceService implements VoiceServiceContract {
   final SpeechToText _speech = SpeechToText();
   final FlutterTts _tts = FlutterTts();
+  static bool verboseLogs = false;
   bool _isInitialized = false;
+
+  void _log(String message) {
+    if (kDebugMode && verboseLogs) {
+      debugPrint(message);
+    }
+  }
 
   Future<bool> ensureInitialized({
     void Function(String status)? onStatus,
@@ -42,7 +49,7 @@ class VoiceService implements VoiceServiceContract {
       _isInitialized = true;
       return true;
     } catch (e) {
-      debugPrint('Voice init error: $e');
+      _log('Voice init error: $e');
       return false;
     }
   }
@@ -70,7 +77,7 @@ class VoiceService implements VoiceServiceContract {
       );
       return true;
     } catch (e) {
-      debugPrint('Voice listen error: $e');
+      _log('Voice listen error: $e');
       return false;
     }
   }
@@ -95,7 +102,7 @@ class VoiceService implements VoiceServiceContract {
         return systemLocale.localeId;
       }
     } catch (e) {
-      debugPrint('Voice locale resolve error: $e');
+      _log('Voice locale resolve error: $e');
     }
     return preferredLocaleId;
   }
@@ -105,7 +112,7 @@ class VoiceService implements VoiceServiceContract {
     try {
       await _speech.stop();
     } catch (e) {
-      debugPrint('Voice stop error: $e');
+      _log('Voice stop error: $e');
     }
   }
 
@@ -119,7 +126,7 @@ class VoiceService implements VoiceServiceContract {
     } on MissingPluginException {
       // Expected in widget/unit test environments without platform channels.
     } catch (e) {
-      debugPrint('Voice speak error: $e');
+      _log('Voice speak error: $e');
     }
   }
 
