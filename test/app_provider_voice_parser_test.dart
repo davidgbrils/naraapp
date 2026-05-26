@@ -156,5 +156,32 @@ void main() {
       expect(provider.debts.first['type'], 'piutang');
       expect(provider.debts.first['amount'], 300000);
     });
+
+    test('applyPendingVoiceAction pays partial debt from voice command', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      provider.addDebt({
+        'title': 'Andi',
+        'amount': 500000,
+        'type': 'utang',
+        'date': 'Hari ini',
+        'dueDate': '',
+        'note': '',
+      });
+      final debtId = provider.debts.first['debtId'] as int;
+
+      await provider.simulateVoiceCommand('bayar sebagian andi 200 ribu');
+      final preview = provider.pendingVoiceAction;
+      expect(preview, isNotNull);
+      expect(preview!['type'], 'debt_payment');
+      expect(preview['debtId'], debtId);
+      expect(preview['amount'], 200000);
+
+      final applied = await provider.applyPendingVoiceAction(approved: true);
+      expect(applied, true);
+      expect(provider.debts.first['paidAmount'], 200000);
+      expect(provider.debts.first['status'], 'berjalan');
+    });
   });
 }

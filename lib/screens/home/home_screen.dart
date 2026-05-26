@@ -1444,6 +1444,31 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           ? 'Create reminder "$title" at $timeText with mode $mode?'
           : 'Buat reminder "$title" pada $timeText dengan mode $mode?';
     }
+    if (type == 'debt') {
+      final amount = (action['amount'] as int?) ?? 0;
+      final title = action['title'] as String? ?? '-';
+      final debtType = action['debtType'] as String? ?? 'utang';
+      final typeLabel = debtType == 'piutang'
+          ? (isEnglish ? 'receivable' : 'piutang')
+          : (isEnglish ? 'debt' : 'utang');
+      return isEnglish
+          ? 'Save $typeLabel "$title" amount ${formatRupiah(amount)}?'
+          : 'Simpan $typeLabel "$title" sebesar ${formatRupiah(amount)}?';
+    }
+    if (type == 'debt_payment') {
+      final amount = (action['amount'] as int?) ?? 0;
+      final debtId = action['debtId'] as int?;
+      final target = debtId == null
+          ? null
+          : context.read<AppProvider>().debts.cast<Map<String, dynamic>?>().firstWhere(
+                (item) => (item?['debtId'] as int?) == debtId,
+                orElse: () => null,
+              );
+      final title = (target?['title'] as String?)?.trim();
+      return isEnglish
+          ? 'Save partial debt payment${title == null || title.isEmpty ? '' : ' for "$title"'} amount ${formatRupiah(amount)}?'
+          : 'Simpan pembayaran sebagian${title == null || title.isEmpty ? '' : ' untuk "$title"'} sebesar ${formatRupiah(amount)}?';
+    }
     return isEnglish ? 'Save this voice command?' : 'Simpan perintah suara ini?';
   }
 }

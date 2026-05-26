@@ -36,67 +36,113 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final activeProvider = context.watch<AppProvider>();
+    final isEnglish = activeProvider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: Tooltip(
-          message: 'Aksi cepat',
+          message: tr('Aksi cepat', 'Quick actions'),
           child: IconButton(
             onPressed: () {
               HapticFeedback.lightImpact();
               _openQuickActionSheet();
             },
             icon: const Icon(Icons.menu_rounded, color: AppTheme.onSurface),
-            tooltip: 'Buka menu aksi cepat',
+            tooltip: tr('Buka menu aksi cepat', 'Open quick actions'),
           ),
         ),
         title: Semantics(
-          label: 'Menu Keuangan',
-          child: Text('Keuangan', style: AppTheme.h2),
+          label: tr('Menu Keuangan', 'Finance menu'),
+          child: Text(tr('Keuangan', 'Finance'), style: AppTheme.h2),
         ),
         actions: [
           Tooltip(
-            message: 'Lihat pengingat',
+            message: tr('Lihat pengingat', 'View reminders'),
             child: IconButton(
               icon: const Icon(Icons.notifications_outlined, color: AppTheme.onSurface),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 Navigator.pushNamed(context, '/reminders');
               },
-              tooltip: 'Pengingat transaksi',
+              tooltip: tr('Pengingat transaksi', 'Transaction reminders'),
             ),
           ),
           const SizedBox(width: 8),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          dividerColor: Colors.transparent,
-          indicatorColor: AppTheme.primary,
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: AppTheme.primary,
-          unselectedLabelColor: AppTheme.outline,
-          labelStyle: AppTheme.label.copyWith(fontWeight: FontWeight.w600),
-          unselectedLabelStyle: AppTheme.label,
-          tabs: const [
-            Tab(text: 'Pengeluaran'),
-            Tab(text: 'Pemasukan'),
-            Tab(text: 'Utang & Piutang'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Container(
+            height: 44,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainer.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppTheme.outlineVariant.withValues(alpha: 0.35),
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              dividerColor: Colors.transparent,
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicator: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.primary.withValues(alpha: 0.45),
+                ),
+              ),
+              labelColor: AppTheme.primary,
+              unselectedLabelColor: AppTheme.outline,
+              labelStyle: AppTheme.label.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: AppTheme.label.copyWith(fontSize: 12),
+              tabs: [
+                Tab(text: tr('Pengeluaran', 'Expenses')),
+                Tab(text: tr('Pemasukan', 'Income')),
+                Tab(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tr('Utang/Piutang', 'Debt/Receivable'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      body: Consumer<AppProvider>(
-        builder: (context, provider, _) {
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildExpenseTab(context, provider),
-              _buildIncomeTab(context, provider),
-              _buildDebtTab(context, provider),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppTheme.background,
+              AppTheme.surfaceContainerLow.withValues(alpha: 0.55),
             ],
-          );
-        },
+          ),
+        ),
+        child: Consumer<AppProvider>(
+          builder: (context, provider, _) {
+            return TabBarView(
+              controller: _tabController,
+              children: [
+                _buildExpenseTab(context, provider),
+                _buildIncomeTab(context, provider),
+                _buildDebtTab(context, provider),
+              ],
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -105,11 +151,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         },
         backgroundColor: AppTheme.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        tooltip: 'Tambah transaksi',
+        tooltip: tr('Tambah transaksi', 'Add transaction'),
         child: Semantics(
           button: true,
           enabled: true,
-          label: 'Tombol tambah transaksi',
+          label: tr('Tombol tambah transaksi', 'Add transaction button'),
           child: const Icon(Icons.add_rounded, color: AppTheme.onPrimary, size: 30),
         ),
       ),
@@ -117,6 +163,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   Widget _buildExpenseTab(BuildContext context, AppProvider provider) {
+    final isEnglish = provider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredExpenses = _filterTransactions(
       provider.expenses,
       _expenseFilter,
@@ -129,7 +178,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     // Calculate category totals
     final categoryTotals = <String, int>{};
     for (final expense in filteredExpenses) {
-      final category = (expense['category'] as String?) ?? 'Lainnya';
+      final category = (expense['category'] as String?) ?? tr('Lainnya', 'Others');
       final amount = ((expense['amount'] as num?)?.round() ?? 0);
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
     }
@@ -160,7 +209,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -169,25 +218,25 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             child: Row(
               children: [
                 _FilterChip(
-                  label: 'Bulan Ini',
+                  label: tr('Bulan Ini', 'This Month'),
                   isSelected: _expenseFilter == _TransactionFilterPreset.month,
                   onTap: () => setState(() => _expenseFilter = _TransactionFilterPreset.month),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Minggu Ini',
+                  label: tr('Minggu Ini', 'This Week'),
                   isSelected: _expenseFilter == _TransactionFilterPreset.week,
                   onTap: () => setState(() => _expenseFilter = _TransactionFilterPreset.week),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Tahun Ini',
+                  label: tr('Tahun Ini', 'This Year'),
                   isSelected: _expenseFilter == _TransactionFilterPreset.year,
                   onTap: () => setState(() => _expenseFilter = _TransactionFilterPreset.year),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: _expenseCustomDate == null ? 'Pilih Tanggal' : _formatDateLabel(context, _expenseCustomDate!),
+                  label: _expenseCustomDate == null ? tr('Pilih Tanggal', 'Pick Date') : _formatDateLabel(context, _expenseCustomDate!),
                   isSelected: _expenseFilter == _TransactionFilterPreset.custom,
                   onTap: () => _pickCustomDate(
                     context: context,
@@ -205,18 +254,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           ),
           const SizedBox(height: 24),
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isCompact ? 16 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total Pengeluaran', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(tr('Total Pengeluaran', 'Total Expenses'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
                 const SizedBox(height: 8),
                 Text(formatRupiah(totalExpense), style: AppTheme.h1),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Anggaran: ${formatRupiah(budget)}', style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12)),
+                    Text('${tr('Anggaran', 'Budget')}: ${formatRupiah(budget)}', style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12)),
                     Text('${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%', style: AppTheme.label.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold)),
                   ],
                 ),
@@ -235,16 +284,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           ),
           const SizedBox(height: 20),
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isCompact ? 16 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Kategori', style: AppTheme.h3),
+                Text(tr('Kategori', 'Categories'), style: AppTheme.h3),
                 const SizedBox(height: 20),
                 if (sortedCategories.isEmpty)
                   Center(
                     child: Text(
-                      'Belum ada pengeluaran',
+                      tr('Belum ada pengeluaran', 'No expenses yet'),
                       style: AppTheme.body.copyWith(color: AppTheme.outline),
                     ),
                   )
@@ -298,10 +347,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Riwayat', style: AppTheme.h3),
+              Text(tr('Riwayat', 'History'), style: AppTheme.h3),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
-                child: Text('Lihat Semua', style: AppTheme.label.copyWith(color: AppTheme.primary)),
+                child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
               ),
             ],
           ),
@@ -313,9 +362,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           const SizedBox(height: 12),
           if (filteredExpenses.isEmpty)
             GlassContainer(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isCompact ? 16 : 20),
               child: Center(
-                child: Text('Belum ada pengeluaran pada filter ini', style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(tr('Belum ada pengeluaran pada filter ini', 'No expenses for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
               ),
             )
           else
@@ -328,13 +377,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 amountColor: AppTheme.onSurface,
               ),
             ),
-          const SizedBox(height: 80),
+          const SizedBox(height: 72),
         ],
       ),
     );
   }
 
   Widget _buildIncomeTab(BuildContext context, AppProvider provider) {
+    final isEnglish = provider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredIncomes = _filterTransactions(
       provider.incomes,
       _incomeFilter,
@@ -343,7 +395,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final totalIncome = filteredIncomes.fold<num>(0, (sum, item) => sum + ((item['amount'] as num?) ?? 0));
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -352,25 +404,25 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             child: Row(
               children: [
                 _FilterChip(
-                  label: 'Minggu Ini',
+                  label: tr('Minggu Ini', 'This Week'),
                   isSelected: _incomeFilter == _TransactionFilterPreset.week,
                   onTap: () => setState(() => _incomeFilter = _TransactionFilterPreset.week),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Bulan Ini',
+                  label: tr('Bulan Ini', 'This Month'),
                   isSelected: _incomeFilter == _TransactionFilterPreset.month,
                   onTap: () => setState(() => _incomeFilter = _TransactionFilterPreset.month),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Tahun Ini',
+                  label: tr('Tahun Ini', 'This Year'),
                   isSelected: _incomeFilter == _TransactionFilterPreset.year,
                   onTap: () => setState(() => _incomeFilter = _TransactionFilterPreset.year),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: _incomeCustomDate == null ? 'Custom' : _formatDateLabel(context, _incomeCustomDate!),
+                  label: _incomeCustomDate == null ? tr('Custom', 'Custom') : _formatDateLabel(context, _incomeCustomDate!),
                   isSelected: _incomeFilter == _TransactionFilterPreset.custom,
                   onTap: () => _pickCustomDate(
                     context: context,
@@ -388,11 +440,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           ),
           const SizedBox(height: 24),
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isCompact ? 16 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total Pemasukan', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(tr('Total Pemasukan', 'Total Income'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
                 const SizedBox(height: 8),
                 Text(formatRupiah(totalIncome), style: AppTheme.h1.copyWith(color: AppTheme.primary)),
                 const SizedBox(height: 8),
@@ -402,11 +454,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           ),
           const SizedBox(height: 20),
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isCompact ? 16 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Sumber Pemasukan', style: AppTheme.h3),
+                Text(tr('Sumber Pemasukan', 'Income Sources'), style: AppTheme.h3),
                 const SizedBox(height: 20),
                 Row(
                   children: [
@@ -434,10 +486,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     Expanded(
                       child: Column(
                         children: [
-                          _CategoryLegendItem(label: 'Gaji', percentage: '60%', color: AppTheme.primary),
+                          _CategoryLegendItem(label: tr('Gaji', 'Salary'), percentage: '60%', color: AppTheme.primary),
                           _CategoryLegendItem(label: 'Freelance', percentage: '25%', color: AppTheme.success),
-                          _CategoryLegendItem(label: 'Investasi', percentage: '10%', color: AppTheme.tertiary),
-                          _CategoryLegendItem(label: 'Lainnya', percentage: '5%', color: AppTheme.outline),
+                          _CategoryLegendItem(label: tr('Investasi', 'Investment'), percentage: '10%', color: AppTheme.tertiary),
+                          _CategoryLegendItem(label: tr('Lainnya', 'Others'), percentage: '5%', color: AppTheme.outline),
                         ],
                       ),
                     ),
@@ -450,10 +502,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Riwayat Pemasukan', style: AppTheme.h3),
+              Text(tr('Riwayat Pemasukan', 'Income History'), style: AppTheme.h3),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
-                child: Text('Lihat Semua', style: AppTheme.label.copyWith(color: AppTheme.primary)),
+                child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
               ),
             ],
           ),
@@ -465,9 +517,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           const SizedBox(height: 12),
           if (filteredIncomes.isEmpty)
             GlassContainer(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isCompact ? 16 : 20),
               child: Center(
-                child: Text('Belum ada pemasukan pada filter ini', style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(tr('Belum ada pemasukan pada filter ini', 'No income for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
               ),
             )
           else
@@ -480,13 +532,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 amountColor: AppTheme.success,
               ),
             ),
-          const SizedBox(height: 80),
+          const SizedBox(height: 72),
         ],
       ),
     );
   }
 
   Widget _buildDebtTab(BuildContext context, AppProvider provider) {
+    final isEnglish = provider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
+    final isCompact = MediaQuery.of(context).size.width < 380;
     final debts = provider.debts;
     final filteredDebts = debts.where((debt) {
       final status = (debt['status'] as String?) ?? 'berjalan';
@@ -508,7 +563,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -516,7 +571,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             children: [
               Expanded(
                 child: _DebtSummaryCard(
-                  label: 'Saya Berhutang',
+                  label: tr('Saya Berhutang', 'My Debts'),
                   amount: formatRupiah(utangSaya),
                   color: AppTheme.secondary,
                 ),
@@ -524,7 +579,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               const SizedBox(width: 12),
               Expanded(
                 child: _DebtSummaryCard(
-                  label: 'Piutang Saya',
+                  label: tr('Piutang Saya', 'My Receivables'),
                   amount: formatRupiah(piutangSaya),
                   color: AppTheme.success,
                 ),
@@ -535,19 +590,19 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Row(
             children: [
               _FilterChip(
-                label: 'Semua',
+                label: tr('Semua', 'All'),
                 isSelected: _debtFilter == _DebtFilter.all,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.all),
               ),
               const SizedBox(width: 8),
               _FilterChip(
-                label: 'Belum Lunas',
+                label: tr('Belum Lunas', 'Unpaid'),
                 isSelected: _debtFilter == _DebtFilter.unpaid,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
               ),
               const SizedBox(width: 8),
               _FilterChip(
-                label: 'Lunas',
+                label: tr('Lunas', 'Paid'),
                 isSelected: _debtFilter == _DebtFilter.paid,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
               ),
@@ -570,10 +625,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Jatuh Tempo Mendekat', style: AppTheme.label.copyWith(fontWeight: FontWeight.bold)),
+                        Text(tr('Jatuh Tempo Mendekat', 'Due Date Near'), style: AppTheme.label.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(
-                          '${overdueDebt['title'] as String? ?? '-'} masih belum lunas.',
+                          isEnglish
+                              ? '${overdueDebt['title'] as String? ?? '-'} is still unpaid.'
+                              : '${overdueDebt['title'] as String? ?? '-'} masih belum lunas.',
                           style: AppTheme.body.copyWith(fontSize: 12, color: AppTheme.onSurfaceVariant),
                         ),
                       ],
@@ -582,12 +639,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 ],
               ),
             ),
-          if (overdueDebt.isNotEmpty) const SizedBox(height: 20),
+          if (overdueDebt.isNotEmpty) SizedBox(height: isCompact ? 16 : 20),
           if (filteredDebts.isEmpty)
             GlassContainer(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isCompact ? 16 : 20),
               child: Center(
-                child: Text('Belum ada data utang/piutang pada filter ini', style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(tr('Belum ada data utang/piutang pada filter ini', 'No debt/receivable data for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
               ),
             )
           else
@@ -608,7 +665,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               final hasH0Schedule = h0ScheduledAt != null;
 
               return GlassContainer(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isCompact ? 16 : 20),
                 margin: const EdgeInsets.only(bottom: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -639,13 +696,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                           ),
                         ),
                         _StatusBadge(
-                          label: isPaid ? 'Lunas' : 'Belum Lunas',
+                          label: isPaid ? tr('Lunas', 'Paid') : tr('Belum Lunas', 'Unpaid'),
                           color: isPaid ? AppTheme.success : AppTheme.outlineVariant,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    Text('Sisa ${isDebtOwed ? 'Utang' : 'Piutang'}', style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12)),
+                    Text(
+                      isDebtOwed ? tr('Sisa Utang', 'Remaining Debt') : tr('Sisa Piutang', 'Remaining Receivable'),
+                      style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12),
+                    ),
                     Text(formatRupiah(remainingAmount), style: AppTheme.h3.copyWith(color: accentColor)),
                     const SizedBox(height: 8),
                     ClipRRect(
@@ -660,14 +720,17 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: Text('${formatRupiah(paidAmount)} dibayar', style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 10)),
+                      child: Text(
+                        isEnglish ? '${formatRupiah(paidAmount)} paid' : '${formatRupiah(paidAmount)} dibayar',
+                        style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 10),
+                      ),
                     ),
                     const SizedBox(height: 20),
                     Row(
                       children: [
                         Expanded(
                           child: _ActionButton(
-                            label: 'Bayar Sebagian',
+                            label: tr('Bayar Sebagian', 'Pay Partially'),
                             onTap: isPaid
                                 ? () {}
                                 : () => _showPartialPaymentDialog(
@@ -683,13 +746,13 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         const SizedBox(width: 12),
                         Expanded(
                           child: _ActionButton(
-                            label: 'Tandai Lunas',
+                            label: tr('Tandai Lunas', 'Mark as Paid'),
                             onTap: isPaid
                                 ? () {}
                                 : () {
                                     provider.markDebtAsPaid(originalIndex);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Utang sudah ditandai lunas', style: AppTheme.body)),
+                                      SnackBar(content: Text(tr('Utang sudah ditandai lunas', 'Debt marked as paid'), style: AppTheme.body)),
                                     );
                                   },
                             color: AppTheme.primary.withValues(alpha: 0.8),
@@ -701,14 +764,17 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     if (!isPaid) ...[
                       const SizedBox(height: 12),
                       _ActionButton(
-                        label: 'Ingatkan lagi',
+                        label: tr('Ingatkan lagi', 'Remind again'),
                         onTap: () async {
                           final messenger = ScaffoldMessenger.of(context);
                           final ok = await provider.sendDebtReminderById(debtId);
                           if (!mounted) return;
                           messenger.showSnackBar(
                             SnackBar(
-                              content: Text(ok ? 'Pengingat dikirim.' : 'Gagal kirim pengingat.', style: AppTheme.body),
+                              content: Text(
+                                ok ? tr('Pengingat dikirim.', 'Reminder sent.') : tr('Gagal kirim pengingat.', 'Failed to send reminder.'),
+                                style: AppTheme.body,
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -721,7 +787,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         children: [
                           Expanded(
                             child: _ActionButton(
-                              label: hasH1Schedule ? 'Batalkan H-1' : 'Ingatkan H-1',
+                              label: hasH1Schedule ? tr('Batalkan H-1', 'Cancel D-1') : tr('Ingatkan H-1', 'Remind D-1'),
                               onTap: () async {
                                 final messenger = ScaffoldMessenger.of(context);
                                 final ok = hasH1Schedule
@@ -731,7 +797,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                 messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      ok ? (hasH1Schedule ? 'Pengingat H-1 dibatalkan.' : 'Pengingat H-1 dijadwalkan.') : 'Gagal memproses H-1.',
+                                      ok
+                                          ? (hasH1Schedule
+                                              ? tr('Pengingat H-1 dibatalkan.', 'D-1 reminder canceled.')
+                                              : tr('Pengingat H-1 dijadwalkan.', 'D-1 reminder scheduled.'))
+                                          : tr('Gagal memproses H-1.', 'Failed to process D-1.'),
                                       style: AppTheme.body,
                                     ),
                                     behavior: SnackBarBehavior.floating,
@@ -745,7 +815,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                           const SizedBox(width: 8),
                           Expanded(
                             child: _ActionButton(
-                              label: hasH0Schedule ? 'Batalkan H-0' : 'Ingatkan H-0',
+                              label: hasH0Schedule ? tr('Batalkan H-0', 'Cancel D-0') : tr('Ingatkan H-0', 'Remind D-0'),
                               onTap: () async {
                                 final messenger = ScaffoldMessenger.of(context);
                                 final ok = hasH0Schedule
@@ -755,7 +825,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                 messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      ok ? (hasH0Schedule ? 'Pengingat H-0 dibatalkan.' : 'Pengingat H-0 dijadwalkan.') : 'Gagal memproses H-0.',
+                                      ok
+                                          ? (hasH0Schedule
+                                              ? tr('Pengingat H-0 dibatalkan.', 'D-0 reminder canceled.')
+                                              : tr('Pengingat H-0 dijadwalkan.', 'D-0 reminder scheduled.'))
+                                          : tr('Gagal memproses H-0.', 'Failed to process D-0.'),
                                       style: AppTheme.body,
                                     ),
                                     behavior: SnackBarBehavior.floating,
@@ -778,13 +852,15 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 ),
               );
             }),
-          const SizedBox(height: 80),
+          const SizedBox(height: 72),
         ],
       ),
     );
   }
 
   void _openQuickActionSheet() {
+    final isEnglish = context.read<AppProvider>().language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -797,12 +873,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Aksi Cepat', style: AppTheme.h3),
+                Text(tr('Aksi Cepat', 'Quick Actions'), style: AppTheme.h3),
                 const SizedBox(height: 16),
                 _QuickActionTile(
                   icon: Icons.add_circle_outline_rounded,
-                  title: 'Tambah Pengeluaran',
-                  subtitle: 'Catat transaksi baru',
+                  title: tr('Tambah Pengeluaran', 'Add Expense'),
+                  subtitle: tr('Catat transaksi baru', 'Record a new transaction'),
                   color: AppTheme.secondary,
                   onTap: () {
                     Navigator.pop(sheetContext);
@@ -812,8 +888,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 const SizedBox(height: 12),
                 _QuickActionTile(
                   icon: Icons.arrow_downward_rounded,
-                  title: 'Tambah Pemasukan',
-                  subtitle: 'Simpan pemasukan baru',
+                  title: tr('Tambah Pemasukan', 'Add Income'),
+                  subtitle: tr('Simpan pemasukan baru', 'Save a new income record'),
                   color: AppTheme.success,
                   onTap: () {
                     Navigator.pop(sheetContext);
@@ -823,8 +899,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 const SizedBox(height: 12),
                 _QuickActionTile(
                   icon: Icons.currency_exchange_rounded,
-                  title: 'Tambah Utang / Piutang',
-                  subtitle: 'Kelola saldo utang',
+                  title: tr('Tambah Utang / Piutang', 'Add Debt / Receivable'),
+                  subtitle: tr('Kelola saldo utang', 'Manage debt balances'),
                   color: AppTheme.primaryContainer,
                   onTap: () {
                     Navigator.pop(sheetContext);
@@ -834,8 +910,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 const SizedBox(height: 12),
                 _QuickActionTile(
                   icon: Icons.notifications_active_rounded,
-                  title: 'Buka Reminder',
-                  subtitle: 'Lihat daftar pengingat',
+                  title: tr('Buka Reminder', 'Open Reminders'),
+                  subtitle: tr('Lihat daftar pengingat', 'View reminder list'),
                   color: AppTheme.tertiary,
                   onTap: () {
                     Navigator.pop(sheetContext);
@@ -883,6 +959,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required int debtIndex,
     required int remainingAmount,
   }) {
+    final isEnglish = provider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
     final amountController = TextEditingController();
 
     showDialog<void>(
@@ -892,19 +970,19 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: AppTheme.surfaceContainerLow,
-              title: Text('Bayar Sebagian', style: AppTheme.h3),
+              title: Text(tr('Bayar Sebagian', 'Pay Partially'), style: AppTheme.h3),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sisa utang yang dapat dibayar:',
+                      tr('Sisa utang yang dapat dibayar:', 'Remaining debt you can pay:'),
                       style: AppTheme.body.copyWith(color: AppTheme.outline),
                     ),
                     const SizedBox(height: 4),
                     Semantics(
-                      label: 'Sisa utang',
+                      label: tr('Sisa utang', 'Remaining debt'),
                       child: Text(
                         'Rp ${_formatCurrency(remainingAmount)}',
                         style: AppTheme.h2.copyWith(color: AppTheme.primary),
@@ -913,7 +991,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     const SizedBox(height: 16),
                     Semantics(
                       textField: true,
-                      label: 'Masukkan nominal pembayaran dalam rupiah',
+                      label: tr('Masukkan nominal pembayaran dalam rupiah', 'Enter payment amount in rupiah'),
                       child: TextField(
                         controller: amountController,
                         keyboardType: TextInputType.number,
@@ -921,7 +999,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                           FilteringTextInputFormatter.digitsOnly,
                         ],
                         decoration: InputDecoration(
-                          hintText: 'Masukkan nominal pembayaran',
+                          hintText: tr('Masukkan nominal pembayaran', 'Enter payment amount'),
                           prefixText: 'Rp ',
                           filled: true,
                           fillColor: AppTheme.surfaceContainer,
@@ -935,7 +1013,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     ),
                     if (amountController.text.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      _buildPaymentValidationMessage(amountController.text, remainingAmount),
+                      _buildPaymentValidationMessage(
+                        amountController.text,
+                        remainingAmount,
+                        isEnglish: isEnglish,
+                      ),
                     ]
                   ],
                 ),
@@ -949,8 +1031,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   child: Semantics(
                     button: true,
                     enabled: true,
-                    label: 'Batalkan pembayaran',
-                    child: Text('Batal', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                    label: tr('Batalkan pembayaran', 'Cancel payment'),
+                    child: Text(tr('Batal', 'Cancel'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
                   ),
                 ),
                 ElevatedButton(
@@ -970,10 +1052,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   child: Semantics(
                     button: true,
                     enabled: _isValidPaymentAmount(amountController.text, remainingAmount),
-                    label: _isValidPaymentAmount(amountController.text, remainingAmount) 
-                        ? 'Lanjutkan pembayaran dengan nominal Rp ${_formatCurrency(int.parse(amountController.text))}'
-                        : 'Nominal pembayaran tidak valid',
-                    child: Text('Lanjut', style: AppTheme.label),
+                    label: _isValidPaymentAmount(amountController.text, remainingAmount)
+                        ? (isEnglish
+                            ? 'Continue payment with amount Rp ${_formatCurrency(int.parse(amountController.text))}'
+                            : 'Lanjutkan pembayaran dengan nominal Rp ${_formatCurrency(int.parse(amountController.text))}')
+                        : tr('Nominal pembayaran tidak valid', 'Invalid payment amount'),
+                    child: Text(tr('Lanjut', 'Continue'), style: AppTheme.label),
                   ),
                 ),
               ],
@@ -989,7 +1073,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     return amount > 0 && amount <= remainingAmount;
   }
 
-  Widget _buildPaymentValidationMessage(String input, int remainingAmount) {
+  Widget _buildPaymentValidationMessage(
+    String input,
+    int remainingAmount, {
+    required bool isEnglish,
+  }) {
     final amount = int.tryParse(input) ?? 0;
 
     if (amount <= 0) {
@@ -999,7 +1087,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Nominal harus lebih dari 0',
+              isEnglish ? 'Amount must be greater than 0' : 'Nominal harus lebih dari 0',
               style: AppTheme.body.copyWith(color: AppTheme.error),
             ),
           ),
@@ -1014,7 +1102,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Melebihi sisa utang sebesar Rp ${_formatCurrency(amount - remainingAmount)}',
+              isEnglish
+                  ? 'Exceeds remaining debt by Rp ${_formatCurrency(amount - remainingAmount)}'
+                  : 'Melebihi sisa utang sebesar Rp ${_formatCurrency(amount - remainingAmount)}',
               style: AppTheme.body.copyWith(color: AppTheme.error),
             ),
           ),
@@ -1028,7 +1118,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Sisa setelah pembayaran: Rp ${_formatCurrency(remainingAmount - amount)}',
+            isEnglish
+                ? 'Remaining after payment: Rp ${_formatCurrency(remainingAmount - amount)}'
+                : 'Sisa setelah pembayaran: Rp ${_formatCurrency(remainingAmount - amount)}',
             style: AppTheme.body.copyWith(color: AppTheme.primary),
           ),
         ),
@@ -1044,17 +1136,22 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required int paymentAmount,
     required TextEditingController amountController,
   }) {
+    final isEnglish = provider.language == 'English';
+    String tr(String idText, String enText) => isEnglish ? enText : idText;
     showDialog<void>(
       context: context,
       builder: (confirmContext) {
         return AlertDialog(
           backgroundColor: AppTheme.surfaceContainerLow,
           title: Semantics(
-            label: 'Dialog konfirmasi pembayaran utang',
-            child: Text('Konfirmasi Pembayaran', style: AppTheme.h3),
+            label: tr('Dialog konfirmasi pembayaran utang', 'Debt payment confirmation dialog'),
+            child: Text(tr('Konfirmasi Pembayaran', 'Payment Confirmation'), style: AppTheme.h3),
           ),
           content: Semantics(
-            label: 'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
+            label: tr(
+              'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
+              'Confirm payment amount Rp ${_formatCurrency(paymentAmount)}',
+            ),
             child: Text(
               'Bayar sebesar Rp ${_formatCurrency(paymentAmount)}?',
               style: AppTheme.body,
@@ -1069,8 +1166,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               child: Semantics(
                 button: true,
                 enabled: true,
-                label: 'Batalkan pembayaran',
-                child: Text('Batal', style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                label: tr('Batalkan pembayaran', 'Cancel payment'),
+                child: Text(tr('Batal', 'Cancel'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
               ),
             ),
             ElevatedButton(
@@ -1082,9 +1179,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Semantics(
-                      label: 'Pembayaran berhasil',
+                label: tr('Pembayaran berhasil', 'Payment successful'),
                       child: Text(
-                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                        tr(
+                          'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                          'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
+                        ),
                         style: AppTheme.body,
                       ),
                     ),
@@ -1097,7 +1197,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 button: true,
                 enabled: true,
                 label: 'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
-                child: Text('Bayar', style: AppTheme.label),
+                child: Text(tr('Bayar', 'Pay'), style: AppTheme.label),
               ),
             ),
           ],
@@ -1129,8 +1229,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final items = <String>[];
     if (h1ScheduledAt != null) items.add('H-1: ${fmt(h1ScheduledAt)}');
     if (h0ScheduledAt != null) items.add('H-0: ${fmt(h0ScheduledAt)}');
-    if (items.isEmpty) return 'Belum ada jadwal H-1/H-0.';
-    return 'Terjadwal ${items.join(' | ')}';
+    final isEnglish = context.read<AppProvider>().language == 'English';
+    if (items.isEmpty) return isEnglish ? 'No D-1/D-0 schedule yet.' : 'Belum ada jadwal H-1/H-0.';
+    return isEnglish ? 'Scheduled ${items.join(' | ')}' : 'Terjadwal ${items.join(' | ')}';
   }
 
   List<Map<String, dynamic>> _filterTransactions(
@@ -1165,15 +1266,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   String _filterDescription(BuildContext context, _TransactionFilterPreset preset, DateTime? customDate) {
+    final isEnglish = context.read<AppProvider>().language == 'English';
     switch (preset) {
       case _TransactionFilterPreset.week:
-        return 'Filter: Minggu ini';
+        return isEnglish ? 'Filter: This week' : 'Filter: Minggu ini';
       case _TransactionFilterPreset.month:
-        return 'Filter: Bulan ini';
+        return isEnglish ? 'Filter: This month' : 'Filter: Bulan ini';
       case _TransactionFilterPreset.year:
-        return 'Filter: Tahun ini';
+        return isEnglish ? 'Filter: This year' : 'Filter: Tahun ini';
       case _TransactionFilterPreset.custom:
-        return customDate == null ? 'Filter: Tanggal khusus' : 'Filter: ${_formatDateLabel(context, customDate)}';
+        return customDate == null
+            ? (isEnglish ? 'Filter: Custom date' : 'Filter: Tanggal khusus')
+            : 'Filter: ${_formatDateLabel(context, customDate)}';
     }
   }
 
@@ -1222,13 +1326,18 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.1) : Colors.transparent,
+          color: isSelected
+              ? AppTheme.primary.withValues(alpha: 0.14)
+              : AppTheme.surfaceContainerLow.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppTheme.primary : AppTheme.outlineVariant.withValues(alpha: 0.5),
+            color: isSelected
+                ? AppTheme.primary.withValues(alpha: 0.7)
+                : AppTheme.outlineVariant.withValues(alpha: 0.45),
           ),
         ),
         child: Text(
@@ -1266,8 +1375,11 @@ class _QuickActionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceContainer.withValues(alpha: 0.4),
+          color: AppTheme.surfaceContainer.withValues(alpha: 0.52),
           borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppTheme.outlineVariant.withValues(alpha: 0.25),
+          ),
         ),
         child: Row(
           children: [
@@ -1341,6 +1453,7 @@ class _TransactionItem extends StatelessWidget {
     return GlassContainer(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 12),
+      borderRadius: 18,
       child: Row(
         children: [
           Container(
@@ -1378,17 +1491,9 @@ class _DebtSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.2),
-            color.withValues(alpha: 0.05),
-          ],
-        ),
+        color: AppTheme.surfaceContainer.withValues(alpha: 0.56),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1415,6 +1520,7 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Text(label, style: AppTheme.label.copyWith(fontSize: 10, color: color)),
     );
@@ -1442,12 +1548,17 @@ class _ActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color,
+          color: color.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: textColor.withValues(alpha: 0.18),
+          ),
         ),
         child: Center(
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: AppTheme.label.copyWith(color: textColor, fontWeight: FontWeight.w600),
           ),
         ),
