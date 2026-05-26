@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/i18n.dart';
 import '../../core/formatters.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme.dart';
+import '../../components/index.dart';
 import '../../providers/app_provider.dart';
 
 class TransactionScreen extends StatefulWidget {
@@ -20,6 +22,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   _TransactionFilterPreset _expenseFilter = _TransactionFilterPreset.month;
   _TransactionFilterPreset _incomeFilter = _TransactionFilterPreset.month;
   _DebtFilter _debtFilter = _DebtFilter.all;
+  _DebtTypeFilter _debtTypeFilter = _DebtTypeFilter.all;
+  _DebtDueFilter _debtDueFilter = _DebtDueFilter.all;
   DateTime? _expenseCustomDate;
   DateTime? _incomeCustomDate;
 
@@ -27,6 +31,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -38,40 +45,49 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final activeProvider = context.watch<AppProvider>();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     String tr(String idText, String enText) => _tr(context, activeProvider, idText, enText);
+    final languageCode = activeProvider.language == 'English' ? 'en' : 'id';
+    final tabIndex = _tabController.index;
+    final addRoute = switch (tabIndex) {
+      1 => '/add-income',
+      2 => '/add-debt',
+      _ => '/add-expense',
+    };
+    final addLabel = switch (tabIndex) {
+      1 => I18n.tByCode(languageCode, 'add_income'),
+      2 => I18n.tByCode(languageCode, 'add_debt'),
+      _ => I18n.tByCode(languageCode, 'add_expense'),
+    };
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: NaraColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: Tooltip(
-          message: tr('Aksi cepat', 'Quick actions'),
-          child: IconButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _openQuickActionSheet();
-            },
-            icon: const Icon(Icons.menu_rounded, color: AppTheme.onSurface),
-            tooltip: tr('Buka menu aksi cepat', 'Open quick actions'),
-          ),
-        ),
+        leading: const SizedBox.shrink(),
+        leadingWidth: 0,
         title: Semantics(
           label: tr('Menu Keuangan', 'Finance menu'),
-          child: Text(tr('Keuangan', 'Finance'), style: AppTheme.h2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(tr('Keuangan', 'Finance'), style: NaraTextStyles.h3),
+              const SizedBox(height: 2),
+              Text(
+                tr('Ringkasan transaksi harian', 'Your daily transaction summary'),
+                style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+              ),
+            ],
+          ),
         ),
+        centerTitle: true,
         actions: [
-          Tooltip(
-            message: tr('Lihat pengingat', 'View reminders'),
-            child: IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: AppTheme.onSurface),
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                Navigator.pushNamed(context, '/reminders');
-              },
-              tooltip: tr('Pengingat transaksi', 'Transaction reminders'),
-            ),
+          NotificationBellButton(
+            iconColor: scheme.onSurface,
+            tooltip: tr('Lihat notifikasi', 'View notifications'),
           ),
           const SizedBox(width: 8),
         ],
@@ -81,10 +97,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             height: 44,
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceContainer.withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(14),
+              color: NaraColors.surfaceCard,
+              borderRadius: BorderRadius.circular(NaraRadius.md),
               border: Border.all(
-                color: AppTheme.outlineVariant.withValues(alpha: 0.35),
+                color: NaraColors.textHint.withValues(alpha: 0.35),
               ),
             ),
             child: TabBar(
@@ -92,16 +108,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               dividerColor: Colors.transparent,
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
+                color: NaraColors.primaryLight,
+                borderRadius: BorderRadius.circular(NaraRadius.sm),
                 border: Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.45),
+                  color: NaraColors.primary.withValues(alpha: 0.55),
                 ),
               ),
-              labelColor: AppTheme.primary,
-              unselectedLabelColor: AppTheme.outline,
-              labelStyle: AppTheme.label.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
-              unselectedLabelStyle: AppTheme.label.copyWith(fontSize: 12),
+              labelColor: NaraColors.primary,
+              unselectedLabelColor: NaraColors.textSecondary,
+              labelStyle: NaraTextStyles.label.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
+              unselectedLabelStyle: NaraTextStyles.label.copyWith(fontSize: 12),
               tabs: [
                 Tab(text: tr('Pengeluaran', 'Expenses')),
                 Tab(text: tr('Pemasukan', 'Income')),
@@ -120,43 +136,31 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           ),
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.background,
-              AppTheme.surfaceContainerLow.withValues(alpha: 0.55),
+      body: Consumer<AppProvider>(
+        builder: (context, provider, _) {
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildExpenseTab(context, provider),
+              _buildIncomeTab(context, provider),
+              _buildDebtTab(context, provider),
             ],
-          ),
-        ),
-        child: Consumer<AppProvider>(
-          builder: (context, provider, _) {
-            return TabBarView(
-              controller: _tabController,
-              children: [
-                _buildExpenseTab(context, provider),
-                _buildIncomeTab(context, provider),
-                _buildDebtTab(context, provider),
-              ],
-            );
-          },
-        ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           HapticFeedback.mediumImpact();
-          _openQuickActionSheet();
+          Navigator.pushNamed(context, addRoute);
         },
-        backgroundColor: AppTheme.primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        tooltip: tr('Tambah transaksi', 'Add transaction'),
+        backgroundColor: scheme.primary,
+        shape: const CircleBorder(),
+        tooltip: addLabel,
         child: Semantics(
           button: true,
           enabled: true,
-          label: tr('Tombol tambah transaksi', 'Add transaction button'),
-          child: const Icon(Icons.add_rounded, color: AppTheme.onPrimary, size: 30),
+          label: addLabel,
+          child: Icon(Icons.add_rounded, color: scheme.onPrimary, size: 30),
         ),
       ),
     );
@@ -164,6 +168,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
   Widget _buildExpenseTab(BuildContext context, AppProvider provider) {
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final bodyStyle = NaraTextStyles.body;
+    final titleStyle = NaraTextStyles.h3;
+    final displayStyle = NaraTextStyles.h1;
     final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredExpenses = _filterTransactions(
       provider.expenses,
@@ -174,38 +183,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     const budget = 5000000;
     final progress = totalExpense / budget;
 
-    // Calculate category totals
-    final categoryTotals = <String, int>{};
-    for (final expense in filteredExpenses) {
-      final category = (expense['category'] as String?) ?? tr('Lainnya', 'Others');
-      final amount = ((expense['amount'] as num?)?.round() ?? 0);
-      categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
-    }
-
-    // Sort categories by amount (descending) and calculate percentages
-    final sortedCategories = categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    
-    final categoryPercentages = <String, int>{};
-    for (final entry in sortedCategories) {
-      final percentage = totalExpense == 0 ? 0 : ((entry.value / totalExpense) * 100).round();
-      categoryPercentages[entry.key] = percentage;
-    }
-
-    // Define colors for categories
-    final colors = [
-      AppTheme.primary,
-      AppTheme.secondary,
-      AppTheme.tertiary,
-      AppTheme.success,
+    final expenseCategoryTotals = _buildCategoryTotals(filteredExpenses, tr);
+    final sortedExpenseCategories = _sortCategoryTotals(expenseCategoryTotals);
+    final expenseCategoryPercentages =
+        _buildCategoryPercentages(sortedExpenseCategories, totalExpense);
+    final categoryColors = [
+      NaraColors.primary,
+      NaraColors.accentOrange,
+      NaraColors.accentPurple,
+      NaraColors.success,
     ];
-
-    // Calculate gradient stops based on percentages
-    final gradientStops = <double>[];
-    double accumulated = 0;
-    for (int i = 0; i < (sortedCategories.length > 4 ? 4 : sortedCategories.length); i++) {
-      accumulated += categoryPercentages[sortedCategories[i].key]! / 100;
-      gradientStops.add(accumulated.clamp(0, 1));
-    }
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isCompact ? 16 : 20),
@@ -252,14 +239,19 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             ),
           ),
           const SizedBox(height: 24),
-          GlassContainer(
+          NaraCard(
             padding: EdgeInsets.all(isCompact ? 16 : 20),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('Total Pengeluaran', 'Total Expenses'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(
+                  tr('Total Pengeluaran', 'Total Expenses'),
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                ),
                 const SizedBox(height: 8),
-                Text(formatRupiah(totalExpense), style: AppTheme.h1),
+                Text(formatRupiah(totalExpense), style: displayStyle),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -269,11 +261,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         '${tr('Anggaran', 'Budget')}: ${formatRupiah(budget)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12),
+                        style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary, fontSize: 12),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%', style: AppTheme.label.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%',
+                      style: NaraTextStyles.label.copyWith(color: NaraColors.primary, fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -282,71 +277,31 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   child: LinearProgressIndicator(
                     value: progress.clamp(0, 1),
                     minHeight: 8,
-                    backgroundColor: AppTheme.outlineVariant.withValues(alpha: 0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                    backgroundColor: NaraColors.textHint.withValues(alpha: 0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(NaraColors.primary),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          GlassContainer(
+          NaraCard(
             padding: EdgeInsets.all(isCompact ? 16 : 20),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('Kategori', 'Categories'), style: AppTheme.h3),
+                Text(tr('Kategori', 'Categories'), style: titleStyle),
                 const SizedBox(height: 20),
-                if (sortedCategories.isEmpty)
-                  Center(
-                    child: Text(
-                      tr('Belum ada pengeluaran', 'No expenses yet'),
-                      style: AppTheme.body.copyWith(color: AppTheme.outline),
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: SweepGradient(
-                            colors: [
-                              for (int i = 0; i < (sortedCategories.length > 4 ? 4 : sortedCategories.length); i++)
-                                colors[i % colors.length],
-                            ],
-                            stops: gradientStops.isEmpty ? [1.0] : gradientStops,
-                          ),
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: AppTheme.background,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.show_chart_rounded, color: AppTheme.outline, size: 20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (int i = 0; i < (sortedCategories.length > 4 ? 4 : sortedCategories.length); i++)
-                              _CategoryLegendItem(
-                                label: sortedCategories[i].key,
-                                percentage: '${categoryPercentages[sortedCategories[i].key]}%',
-                                color: colors[i % colors.length],
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                _buildCategoryChartRow(
+                  sortedCategories: sortedExpenseCategories,
+                  categoryPercentages: expenseCategoryPercentages,
+                  colors: categoryColors,
+                  scheme: scheme,
+                  bodyStyle: bodyStyle,
+                  emptyText: tr('Belum ada pengeluaran', 'No expenses yet'),
+                ),
               ],
             ),
           ),
@@ -359,37 +314,53 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   tr('Riwayat', 'History'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTheme.h3,
+                  style: NaraTextStyles.h3,
                 ),
               ),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
-                child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
+                child: Text(tr('Lihat Semua', 'See All'),
+                    style: NaraTextStyles.label.copyWith(color: NaraColors.primary)),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             _filterDescription(context, _expenseFilter, _expenseCustomDate),
-            style: AppTheme.label.copyWith(color: AppTheme.outline),
+            style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
           ),
           const SizedBox(height: 12),
           if (filteredExpenses.isEmpty)
-            GlassContainer(
+            NaraCard(
               padding: EdgeInsets.all(isCompact ? 16 : 20),
+              borderRadius: NaraRadius.lg,
+              backgroundColor: NaraColors.surfaceWhite,
               child: Center(
-                child: Text(tr('Belum ada pengeluaran pada filter ini', 'No expenses for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(
+                  tr('Belum ada pengeluaran pada filter ini', 'No expenses for this filter'),
+                  style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
+                ),
               ),
             )
           else
             ...filteredExpenses.map(
-              (expense) => _TransactionItem(
-                icon: _iconFromName(expense['icon'] as String? ?? 'shopping_bag'),
-                title: expense['title'] as String? ?? '-',
-                subtitle: expense['time'] as String? ?? '-',
-                amount: '-${formatRupiah((expense['amount'] as num?) ?? 0)}',
-                amountColor: AppTheme.onSurface,
-              ),
+              (expense) {
+                final originalIndex = provider.expenses.indexOf(expense);
+                return _TransactionItem(
+                  icon: _iconFromName(expense['icon'] as String? ?? 'shopping_bag'),
+                  title: expense['title'] as String? ?? '-',
+                  subtitle: expense['time'] as String? ?? '-',
+                  amount: '-${formatRupiah((expense['amount'] as num?) ?? 0)}',
+                  amountColor: NaraColors.textPrimary,
+                  onTap: originalIndex >= 0
+                      ? () => _showEditExpenseDialog(
+                            context: context,
+                            provider: provider,
+                            index: originalIndex,
+                          )
+                      : null,
+                );
+              },
             ),
           const SizedBox(height: 72),
         ],
@@ -399,6 +370,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
   Widget _buildIncomeTab(BuildContext context, AppProvider provider) {
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final bodyStyle = NaraTextStyles.body;
+    final titleStyle = NaraTextStyles.h3;
+    final displayStyle = NaraTextStyles.h1;
     final isCompact = MediaQuery.of(context).size.width < 380;
     final filteredIncomes = _filterTransactions(
       provider.incomes,
@@ -406,6 +382,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       _incomeCustomDate,
     );
     final totalIncome = filteredIncomes.fold<num>(0, (sum, item) => sum + ((item['amount'] as num?) ?? 0));
+    final incomeCategoryTotals = _buildCategoryTotals(filteredIncomes, tr);
+    final sortedIncomeCategories = _sortCategoryTotals(incomeCategoryTotals);
+    final incomeCategoryPercentages =
+        _buildCategoryPercentages(sortedIncomeCategories, totalIncome);
+    final categoryColors = [
+      NaraColors.primary,
+      NaraColors.accentOrange,
+      NaraColors.accentPurple,
+      NaraColors.success,
+    ];
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isCompact ? 16 : 20),
@@ -452,61 +438,45 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             ),
           ),
           const SizedBox(height: 24),
-          GlassContainer(
+          NaraCard(
             padding: EdgeInsets.all(isCompact ? 16 : 20),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('Total Pemasukan', 'Total Income'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(
+                  tr('Total Pemasukan', 'Total Income'),
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                ),
                 const SizedBox(height: 8),
-                Text(formatRupiah(totalIncome), style: AppTheme.h1.copyWith(color: AppTheme.primary)),
+                Text(formatRupiah(totalIncome), style: displayStyle.copyWith(color: NaraColors.primary)),
                 const SizedBox(height: 8),
-                Text(_filterDescription(context, _incomeFilter, _incomeCustomDate), style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                Text(
+                  _filterDescription(context, _incomeFilter, _incomeCustomDate),
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          GlassContainer(
+          NaraCard(
             padding: EdgeInsets.all(isCompact ? 16 : 20),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('Sumber Pemasukan', 'Income Sources'), style: AppTheme.h3),
+                Text(tr('Sumber Pemasukan', 'Income Sources'), style: titleStyle),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2), width: 15),
-                        gradient: SweepGradient(
-                          colors: [
-                            AppTheme.primary,
-                            AppTheme.success,
-                            AppTheme.tertiary,
-                            AppTheme.outline,
-                          ],
-                          stops: const [0.60, 0.85, 0.95, 1.0],
-                        ),
-                      ),
-                      child: Center(
-                        child: Icon(Icons.wallet_rounded, color: AppTheme.primary.withValues(alpha: 0.5), size: 30),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          _CategoryLegendItem(label: tr('Gaji', 'Salary'), percentage: '60%', color: AppTheme.primary),
-                          _CategoryLegendItem(label: tr('Freelance', 'Freelance'), percentage: '25%', color: AppTheme.success),
-                          _CategoryLegendItem(label: tr('Investasi', 'Investment'), percentage: '10%', color: AppTheme.tertiary),
-                          _CategoryLegendItem(label: tr('Lainnya', 'Others'), percentage: '5%', color: AppTheme.outline),
-                        ],
-                      ),
-                    ),
-                  ],
+                _buildCategoryChartRow(
+                  sortedCategories: sortedIncomeCategories,
+                  categoryPercentages: incomeCategoryPercentages,
+                  colors: categoryColors,
+                  scheme: scheme,
+                  bodyStyle: bodyStyle,
+                  emptyText: tr('Belum ada pemasukan', 'No income yet'),
+                  icon: Icons.wallet_rounded,
                 ),
               ],
             ),
@@ -520,37 +490,55 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   tr('Riwayat Pemasukan', 'Income History'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTheme.h3,
+                  style: NaraTextStyles.h3,
                 ),
               ),
               TextButton(
                 onPressed: () => Navigator.pushNamed(context, '/report'),
-                child: Text(tr('Lihat Semua', 'See All'), style: AppTheme.label.copyWith(color: AppTheme.primary)),
+                child: Text(
+                  tr('Lihat Semua', 'See All'),
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.primary),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             _filterDescription(context, _incomeFilter, _incomeCustomDate),
-            style: AppTheme.label.copyWith(color: AppTheme.outline),
+            style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
           ),
           const SizedBox(height: 12),
           if (filteredIncomes.isEmpty)
-            GlassContainer(
+            NaraCard(
               padding: EdgeInsets.all(isCompact ? 16 : 20),
+              borderRadius: NaraRadius.lg,
+              backgroundColor: NaraColors.surfaceWhite,
               child: Center(
-                child: Text(tr('Belum ada pemasukan pada filter ini', 'No income for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(
+                  tr('Belum ada pemasukan pada filter ini', 'No income for this filter'),
+                  style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
+                ),
               ),
             )
           else
             ...filteredIncomes.map(
-              (income) => _TransactionItem(
-                icon: _iconFromName(income['icon'] as String? ?? 'account_balance_wallet'),
-                title: income['title'] as String? ?? '-',
-                subtitle: income['time'] as String? ?? '-',
-                amount: '+${formatRupiah((income['amount'] as num?) ?? 0)}',
-                amountColor: AppTheme.success,
-              ),
+              (income) {
+                final originalIndex = provider.incomes.indexOf(income);
+                return _TransactionItem(
+                  icon: _iconFromName(income['icon'] as String? ?? 'account_balance_wallet'),
+                  title: income['title'] as String? ?? '-',
+                  subtitle: income['time'] as String? ?? '-',
+                  amount: '+${formatRupiah((income['amount'] as num?) ?? 0)}',
+                  amountColor: NaraColors.success,
+                  onTap: originalIndex >= 0
+                      ? () => _showEditIncomeDialog(
+                            context: context,
+                            provider: provider,
+                            index: originalIndex,
+                          )
+                      : null,
+                );
+              },
             ),
           const SizedBox(height: 72),
         ],
@@ -561,9 +549,22 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   Widget _buildDebtTab(BuildContext context, AppProvider provider) {
     final isEnglish = provider.language == 'English';
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
+    final softRed = NaraColors.danger;
+    final softGreen = NaraColors.success;
     final isCompact = MediaQuery.of(context).size.width < 380;
     final debts = provider.debts;
-    final filteredDebts = debts.where((debt) {
+    final typeFilteredDebts = debts.where((debt) {
+      final type = (debt['type'] as String?) ?? 'utang';
+      switch (_debtTypeFilter) {
+        case _DebtTypeFilter.all:
+          return true;
+        case _DebtTypeFilter.debt:
+          return type == 'utang';
+        case _DebtTypeFilter.receivable:
+          return type == 'piutang';
+      }
+    }).toList();
+    final statusFilteredDebts = typeFilteredDebts.where((debt) {
       final status = (debt['status'] as String?) ?? 'berjalan';
       switch (_debtFilter) {
         case _DebtFilter.all:
@@ -572,11 +573,44 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           return status != 'lunas';
         case _DebtFilter.paid:
           return status == 'lunas';
+        case _DebtFilter.overdue:
+          return _isDebtOverdue(debt);
       }
     }).toList();
+    final filteredDebts = statusFilteredDebts.where((debt) {
+      switch (_debtDueFilter) {
+        case _DebtDueFilter.all:
+          return true;
+        case _DebtDueFilter.today:
+          final dueDate = _parseDebtDueDate((debt['dueDate'] as String?) ?? '');
+          if (dueDate == null) return false;
+          return DateUtils.isSameDay(DateUtils.dateOnly(dueDate), DateUtils.dateOnly(DateTime.now()));
+        case _DebtDueFilter.next7Days:
+          final dueDate = _parseDebtDueDate((debt['dueDate'] as String?) ?? '');
+          if (dueDate == null) return false;
+          final today = DateUtils.dateOnly(DateTime.now());
+          final end = today.add(const Duration(days: 7));
+          final due = DateUtils.dateOnly(dueDate);
+          return (due.isAtSameMomentAs(today) || due.isAfter(today)) &&
+              (due.isAtSameMomentAs(end) || due.isBefore(end));
+        case _DebtDueFilter.overdue:
+          return _isDebtOverdue(debt);
+      }
+    }).toList()
+      ..sort(_compareDebtItemsForDefaultOrder);
+    final statusAllCount = typeFilteredDebts.length;
+    final statusUnpaidCount = typeFilteredDebts.where((debt) {
+      final status = (debt['status'] as String?) ?? 'berjalan';
+      return status != 'lunas';
+    }).length;
+    final statusPaidCount = typeFilteredDebts.where((debt) {
+      final status = (debt['status'] as String?) ?? 'berjalan';
+      return status == 'lunas';
+    }).length;
+    final statusOverdueCount = typeFilteredDebts.where(_isDebtOverdue).length;
 
-    final utangSaya = debts.where((debt) => debt['type'] == 'utang').fold<num>(0, (sum, debt) => sum + _remainingDebtAmount(debt));
-    final piutangSaya = debts.where((debt) => debt['type'] == 'piutang').fold<num>(0, (sum, debt) => sum + _remainingDebtAmount(debt));
+    final utangSaya = typeFilteredDebts.where((debt) => debt['type'] == 'utang').fold<num>(0, (sum, debt) => sum + _remainingDebtAmount(debt));
+    final piutangSaya = typeFilteredDebts.where((debt) => debt['type'] == 'piutang').fold<num>(0, (sum, debt) => sum + _remainingDebtAmount(debt));
     final overdueDebt = debts.cast<Map<String, dynamic>>().firstWhere(
           (debt) => (debt['status'] as String?) != 'lunas',
           orElse: () => <String, dynamic>{},
@@ -587,71 +621,155 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _DebtSummaryCard(
-                  label: tr('Saya Berhutang', 'My Debts'),
-                  amount: formatRupiah(utangSaya),
-                  color: AppTheme.secondary,
+          if (_debtTypeFilter == _DebtTypeFilter.debt)
+            _DebtSummaryCard(
+              label: tr('Saya Berhutang', 'My Debts'),
+              amount: formatRupiah(utangSaya),
+              color: softRed,
+            )
+          else if (_debtTypeFilter == _DebtTypeFilter.receivable)
+            _DebtSummaryCard(
+              label: tr('Piutang Saya', 'My Receivables'),
+              amount: formatRupiah(piutangSaya),
+              color: softGreen,
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _DebtSummaryCard(
+                    label: tr('Saya Berhutang', 'My Debts'),
+                    amount: formatRupiah(utangSaya),
+                    color: softRed,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _DebtSummaryCard(
-                  label: tr('Piutang Saya', 'My Receivables'),
-                  amount: formatRupiah(piutangSaya),
-                  color: AppTheme.success,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DebtSummaryCard(
+                    label: tr('Piutang Saya', 'My Receivables'),
+                    amount: formatRupiah(piutangSaya),
+                    color: softGreen,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 20),
-          Row(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: tr('Semua', 'All'),
+                  isSelected: _debtTypeFilter == _DebtTypeFilter.all,
+                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.all),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: tr('Saya Berhutang', 'My Debts'),
+                  isSelected: _debtTypeFilter == _DebtTypeFilter.debt,
+                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.debt),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: tr('Piutang Saya', 'My Receivables'),
+                  isSelected: _debtTypeFilter == _DebtTypeFilter.receivable,
+                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.receivable),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
             children: [
               _FilterChip(
-                label: tr('Semua', 'All'),
+                label: '${tr('Semua', 'All')} ($statusAllCount)',
                 isSelected: _debtFilter == _DebtFilter.all,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.all),
               ),
               const SizedBox(width: 8),
               _FilterChip(
-                label: tr('Belum Lunas', 'Unpaid'),
+                label: '${tr('Belum Lunas', 'Unpaid')} ($statusUnpaidCount)',
                 isSelected: _debtFilter == _DebtFilter.unpaid,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
               ),
               const SizedBox(width: 8),
               _FilterChip(
-                label: tr('Lunas', 'Paid'),
+                label: '${tr('Lunas', 'Paid')} ($statusPaidCount)',
                 isSelected: _debtFilter == _DebtFilter.paid,
                 onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
               ),
+              const SizedBox(width: 8),
+              _FilterChip(
+                label: '${tr('Overdue', 'Overdue')} ($statusOverdueCount)',
+                isSelected: _debtFilter == _DebtFilter.overdue,
+                onTap: () => setState(() => _debtFilter = _DebtFilter.overdue),
+              ),
             ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: tr('Semua', 'All'),
+                  isSelected: _debtDueFilter == _DebtDueFilter.all,
+                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.all),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: tr('Hari ini', 'Today'),
+                  isSelected: _debtDueFilter == _DebtDueFilter.today,
+                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.today),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: tr('7 hari', '7 days'),
+                  isSelected: _debtDueFilter == _DebtDueFilter.next7Days,
+                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.next7Days),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: tr('Overdue', 'Overdue'),
+                  isSelected: _debtDueFilter == _DebtDueFilter.overdue,
+                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.overdue),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
           if (overdueDebt.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.tertiary.withValues(alpha: 0.1),
+                color: const Color(0xFFFFF3D6),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.tertiary.withValues(alpha: 0.3)),
+                border: Border.all(color: const Color(0xFFFFE1A6)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppTheme.tertiary, size: 28),
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFD6A43B), size: 28),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(tr('Jatuh Tempo Mendekat', 'Due Date Near'), style: AppTheme.label.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          tr('Jatuh Tempo Mendekat', 'Due Date Near'),
+                          style: NaraTextStyles.label.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF8A5B00),
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           isEnglish
                               ? '${overdueDebt['title'] as String? ?? '-'} is still unpaid.'
                               : '${overdueDebt['title'] as String? ?? '-'} masih belum lunas.',
-                          style: AppTheme.body.copyWith(fontSize: 12, color: AppTheme.onSurfaceVariant),
+                          style: NaraTextStyles.bodySmall.copyWith(fontSize: 12, color: const Color(0xFF8A5B00)),
                         ),
                       ],
                     ),
@@ -661,10 +779,15 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             ),
           if (overdueDebt.isNotEmpty) SizedBox(height: isCompact ? 16 : 20),
           if (filteredDebts.isEmpty)
-            GlassContainer(
+            NaraCard(
               padding: EdgeInsets.all(isCompact ? 16 : 20),
+              borderRadius: NaraRadius.lg,
+              backgroundColor: NaraColors.surfaceWhite,
               child: Center(
-                child: Text(tr('Belum ada data utang/piutang pada filter ini', 'No debt/receivable data for this filter'), style: AppTheme.body.copyWith(color: AppTheme.outline)),
+                child: Text(
+                  tr('Belum ada data utang/piutang pada filter ini', 'No debt/receivable data for this filter'),
+                  style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
+                ),
               ),
             )
           else
@@ -676,7 +799,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               final remainingAmount = totalAmount - paidAmount;
               final isPaid = (debt['status'] as String?) == 'lunas' || remainingAmount <= 0;
               final isDebtOwed = (debt['type'] as String?) == 'utang';
-              final accentColor = isDebtOwed ? AppTheme.secondary : AppTheme.success;
+              final accentColor = isDebtOwed ? softRed : softGreen;
               final title = debt['title'] as String? ?? '-';
               final subtitle = debt['note'] as String? ?? debt['date'] as String? ?? '-';
               final h1ScheduledAt = DateTime.tryParse((debt['debtReminderH1At'] as String?) ?? '');
@@ -684,9 +807,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               final hasH1Schedule = h1ScheduledAt != null;
               final hasH0Schedule = h0ScheduledAt != null;
 
-              return GlassContainer(
+              return NaraCard(
                 padding: EdgeInsets.all(isCompact ? 16 : 20),
                 margin: const EdgeInsets.only(bottom: 16),
+                borderRadius: NaraRadius.lg,
+                backgroundColor: NaraColors.surfaceWhite,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -695,9 +820,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         Container(
                           width: 44,
                           height: 44,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.surfaceContainer,
+                          decoration: BoxDecoration(
+                            color: NaraColors.surfaceCard,
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: NaraColors.textHint.withValues(alpha: 0.35),
+                            ),
                           ),
                           child: Icon(
                             isDebtOwed ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
@@ -710,30 +838,30 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: AppTheme.label.copyWith(fontWeight: FontWeight.bold)),
-                              Text(subtitle, style: AppTheme.body.copyWith(fontSize: 12, color: AppTheme.outline)),
+                              Text(title, style: NaraTextStyles.label.copyWith(fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text(subtitle, style: NaraTextStyles.bodySmall.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
                         _StatusBadge(
                           label: isPaid ? tr('Lunas', 'Paid') : tr('Belum Lunas', 'Unpaid'),
-                          color: isPaid ? AppTheme.success : AppTheme.outlineVariant,
+                          color: isPaid ? NaraColors.success : NaraColors.textHint,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
                     Text(
                       isDebtOwed ? tr('Sisa Utang', 'Remaining Debt') : tr('Sisa Piutang', 'Remaining Receivable'),
-                      style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 12),
+                      style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary, fontSize: 12),
                     ),
-                    Text(formatRupiah(remainingAmount), style: AppTheme.h3.copyWith(color: accentColor)),
+                    Text(formatRupiah(remainingAmount), style: NaraTextStyles.h3.copyWith(color: accentColor)),
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: LinearProgressIndicator(
                         value: totalAmount <= 0 ? 0 : paidAmount / totalAmount,
                         minHeight: 6,
-                        backgroundColor: AppTheme.outlineVariant.withValues(alpha: 0.2),
+                        backgroundColor: NaraColors.textHint.withValues(alpha: 0.2),
                         valueColor: AlwaysStoppedAnimation<Color>(accentColor),
                       ),
                     ),
@@ -742,7 +870,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       alignment: Alignment.centerRight,
                       child: Text(
                         isEnglish ? '${formatRupiah(paidAmount)} paid' : '${formatRupiah(paidAmount)} dibayar',
-                        style: AppTheme.label.copyWith(color: AppTheme.outline, fontSize: 10),
+                        style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary, fontSize: 10),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -759,8 +887,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                       debtIndex: originalIndex,
                                       remainingAmount: remainingAmount,
                                     ),
-                            color: AppTheme.surfaceContainerHigh,
-                            textColor: AppTheme.onSurface,
+                            color: NaraColors.surfaceCard,
+                            textColor: NaraColors.primary,
+                            borderColor: NaraColors.primary.withValues(alpha: 0.35),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -771,12 +900,17 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                 ? () {}
                                 : () {
                                     provider.markDebtAsPaid(originalIndex);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(tr('Utang sudah ditandai lunas', 'Debt marked as paid'), style: AppTheme.body)),
+                                    showAppSnackBar(
+                                      context,
+                                      content: Text(
+                                        tr('Utang sudah ditandai lunas', 'Debt marked as paid'),
+                                        style: NaraTextStyles.body,
+                                      ),
                                     );
                                   },
-                            color: AppTheme.primary.withValues(alpha: 0.8),
-                            textColor: AppTheme.onPrimary,
+                            color: NaraColors.primary,
+                            textColor: NaraColors.textOnPrimary,
+                            borderColor: NaraColors.primary.withValues(alpha: 0.6),
                           ),
                         ),
                       ],
@@ -786,21 +920,19 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       _ActionButton(
                         label: tr('Ingatkan lagi', 'Remind again'),
                         onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
                           final ok = await provider.sendDebtReminderById(debtId);
                           if (!mounted) return;
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                ok ? tr('Pengingat dikirim.', 'Reminder sent.') : tr('Gagal kirim pengingat.', 'Failed to send reminder.'),
-                                style: AppTheme.body,
-                              ),
-                              behavior: SnackBarBehavior.floating,
+                          showAppSnackBar(
+                            context,
+                            content: Text(
+                              ok ? tr('Pengingat dikirim.', 'Reminder sent.') : tr('Gagal kirim pengingat.', 'Failed to send reminder.'),
+                              style: NaraTextStyles.body,
                             ),
                           );
                         },
-                        color: AppTheme.surfaceContainerHigh,
-                        textColor: AppTheme.onSurface,
+                        color: NaraColors.surfaceCard,
+                        textColor: NaraColors.primary,
+                        borderColor: NaraColors.primary.withValues(alpha: 0.35),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -809,27 +941,25 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             child: _ActionButton(
                               label: hasH1Schedule ? tr('Batalkan H-1', 'Cancel D-1') : tr('Ingatkan H-1', 'Remind D-1'),
                               onTap: () async {
-                                final messenger = ScaffoldMessenger.of(context);
                                 final ok = hasH1Schedule
                                     ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 1)
                                     : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 1);
                                 if (!mounted) return;
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      ok
-                                          ? (hasH1Schedule
-                                              ? tr('Pengingat H-1 dibatalkan.', 'D-1 reminder canceled.')
-                                              : tr('Pengingat H-1 dijadwalkan.', 'D-1 reminder scheduled.'))
-                                          : tr('Gagal memproses H-1.', 'Failed to process D-1.'),
-                                      style: AppTheme.body,
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
+                                showAppSnackBar(
+                                  context,
+                                  content: Text(
+                                    ok
+                                        ? (hasH1Schedule
+                                            ? tr('Pengingat H-1 dibatalkan.', 'D-1 reminder canceled.')
+                                            : tr('Pengingat H-1 dijadwalkan.', 'D-1 reminder scheduled.'))
+                                        : tr('Gagal memproses H-1.', 'Failed to process D-1.'),
+                                    style: NaraTextStyles.body,
                                   ),
                                 );
                               },
-                              color: AppTheme.surfaceContainerHigh,
-                              textColor: AppTheme.onSurface,
+                              color: NaraColors.surfaceCard,
+                              textColor: NaraColors.primary,
+                              borderColor: NaraColors.primary.withValues(alpha: 0.35),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -837,27 +967,25 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             child: _ActionButton(
                               label: hasH0Schedule ? tr('Batalkan H-0', 'Cancel D-0') : tr('Ingatkan H-0', 'Remind D-0'),
                               onTap: () async {
-                                final messenger = ScaffoldMessenger.of(context);
                                 final ok = hasH0Schedule
                                     ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 0)
                                     : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 0);
                                 if (!mounted) return;
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      ok
-                                          ? (hasH0Schedule
-                                              ? tr('Pengingat H-0 dibatalkan.', 'D-0 reminder canceled.')
-                                              : tr('Pengingat H-0 dijadwalkan.', 'D-0 reminder scheduled.'))
-                                          : tr('Gagal memproses H-0.', 'Failed to process D-0.'),
-                                      style: AppTheme.body,
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
+                                showAppSnackBar(
+                                  context,
+                                  content: Text(
+                                    ok
+                                        ? (hasH0Schedule
+                                            ? tr('Pengingat H-0 dibatalkan.', 'D-0 reminder canceled.')
+                                            : tr('Pengingat H-0 dijadwalkan.', 'D-0 reminder scheduled.'))
+                                        : tr('Gagal memproses H-0.', 'Failed to process D-0.'),
+                                    style: NaraTextStyles.body,
                                   ),
                                 );
                               },
-                              color: AppTheme.surfaceContainerHigh,
-                              textColor: AppTheme.onSurface,
+                              color: NaraColors.surfaceCard,
+                              textColor: NaraColors.primary,
+                              borderColor: NaraColors.primary.withValues(alpha: 0.35),
                             ),
                           ),
                         ],
@@ -865,7 +993,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       const SizedBox(height: 6),
                       Text(
                         _debtReminderScheduleLabel(h1ScheduledAt: h1ScheduledAt, h0ScheduledAt: h0ScheduledAt),
-                        style: AppTheme.body.copyWith(color: AppTheme.outline, fontSize: 11),
+                        style: NaraTextStyles.bodySmall.copyWith(color: NaraColors.textSecondary, fontSize: 11),
                       ),
                     ],
                   ],
@@ -888,19 +1016,21 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       builder: (sheetContext) {
         return Padding(
           padding: const EdgeInsets.all(16),
-          child: GlassContainer(
+          child: NaraCard(
             padding: const EdgeInsets.all(20),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('Aksi Cepat', 'Quick Actions'), style: AppTheme.h3),
+                Text(tr('Aksi Cepat', 'Quick Actions'), style: NaraTextStyles.h3),
                 const SizedBox(height: 16),
                 _QuickActionTile(
                   icon: Icons.add_circle_outline_rounded,
                   title: tr('Tambah Pengeluaran', 'Add Expense'),
                   subtitle: tr('Catat transaksi baru', 'Record a new transaction'),
-                  color: AppTheme.secondary,
+                  color: NaraColors.accentOrange,
                   onTap: () {
                     Navigator.pop(sheetContext);
                     Navigator.pushNamed(context, '/add-expense');
@@ -911,7 +1041,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   icon: Icons.arrow_downward_rounded,
                   title: tr('Tambah Pemasukan', 'Add Income'),
                   subtitle: tr('Simpan pemasukan baru', 'Save a new income record'),
-                  color: AppTheme.success,
+                  color: NaraColors.success,
                   onTap: () {
                     Navigator.pop(sheetContext);
                     Navigator.pushNamed(context, '/add-income');
@@ -922,7 +1052,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   icon: Icons.currency_exchange_rounded,
                   title: tr('Tambah Utang / Piutang', 'Add Debt / Receivable'),
                   subtitle: tr('Kelola saldo utang', 'Manage debt balances'),
-                  color: AppTheme.primaryContainer,
+                  color: NaraColors.primary,
                   onTap: () {
                     Navigator.pop(sheetContext);
                     Navigator.pushNamed(context, '/add-debt');
@@ -933,7 +1063,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   icon: Icons.notifications_active_rounded,
                   title: tr('Buka Reminder', 'Open Reminders'),
                   subtitle: tr('Lihat daftar pengingat', 'View reminder list'),
-                  color: AppTheme.tertiary,
+                  color: NaraColors.accentPurple,
                   onTap: () {
                     Navigator.pop(sheetContext);
                     Navigator.pushNamed(context, '/reminders');
@@ -958,11 +1088,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       builder: (context, child) {
+        final scheme = Theme.of(context).colorScheme;
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppTheme.primary,
-                  surface: AppTheme.background,
+                  primary: scheme.primary,
+                  surface: scheme.surface,
                 ),
           ),
           child: child ?? const SizedBox.shrink(),
@@ -972,6 +1103,154 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     if (selectedDate == null || !mounted) return;
     onSelected(DateUtils.dateOnly(selectedDate));
+  }
+
+  Future<void> _showEditExpenseDialog({
+    required BuildContext context,
+    required AppProvider provider,
+    required int index,
+  }) async {
+    if (index < 0 || index >= provider.expenses.length) return;
+    final expense = provider.expenses[index];
+    final titleController = TextEditingController(text: (expense['title'] as String?) ?? '');
+    final amountController = TextEditingController(
+      text: _formatCurrency(((expense['amount'] as num?)?.toInt() ?? 0)),
+    );
+    final isEnglish = provider.language == 'English';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NaraColors.surfaceWhite,
+        title: Text(isEnglish ? 'Edit Expense' : 'Edit Pengeluaran', style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(labelText: isEnglish ? 'Description' : 'Deskripsi'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(I18n.t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(I18n.t(context, 'save')),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) {
+      titleController.dispose();
+      amountController.dispose();
+      return;
+    }
+    if (ok != true) {
+      titleController.dispose();
+      amountController.dispose();
+      return;
+    }
+
+    final title = titleController.text.trim();
+    final amount = parseRupiahInput(amountController.text);
+    titleController.dispose();
+    amountController.dispose();
+
+    if (title.isEmpty || amount <= 0) {
+      showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
+      return;
+    }
+
+    final updatedExpense = Map<String, dynamic>.from(expense)
+      ..['title'] = title
+      ..['amount'] = amount;
+    provider.updateExpenseAt(index, updatedExpense);
+    showAppSnackBar(context, content: Text(isEnglish ? 'Expense updated.' : 'Pengeluaran diperbarui.'));
+  }
+
+  Future<void> _showEditIncomeDialog({
+    required BuildContext context,
+    required AppProvider provider,
+    required int index,
+  }) async {
+    if (index < 0 || index >= provider.incomes.length) return;
+    final income = provider.incomes[index];
+    final titleController = TextEditingController(text: (income['title'] as String?) ?? '');
+    final amountController = TextEditingController(
+      text: _formatCurrency(((income['amount'] as num?)?.toInt() ?? 0)),
+    );
+    final isEnglish = provider.language == 'English';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NaraColors.surfaceWhite,
+        title: Text(isEnglish ? 'Edit Income' : 'Edit Pemasukan', style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(labelText: isEnglish ? 'Description' : 'Deskripsi'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(I18n.t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(I18n.t(context, 'save')),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) {
+      titleController.dispose();
+      amountController.dispose();
+      return;
+    }
+    if (ok != true) {
+      titleController.dispose();
+      amountController.dispose();
+      return;
+    }
+
+    final title = titleController.text.trim();
+    final amount = parseRupiahInput(amountController.text);
+    titleController.dispose();
+    amountController.dispose();
+
+    if (title.isEmpty || amount <= 0) {
+      showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
+      return;
+    }
+
+    final updatedIncome = Map<String, dynamic>.from(income)
+      ..['title'] = title
+      ..['amount'] = amount;
+    provider.updateIncomeAt(index, updatedIncome);
+    showAppSnackBar(context, content: Text(isEnglish ? 'Income updated.' : 'Pemasukan diperbarui.'));
   }
 
   void _showPartialPaymentDialog({
@@ -990,8 +1269,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              backgroundColor: AppTheme.surfaceContainerLow,
-              title: Text(tr('Bayar Sebagian', 'Pay Partially'), style: AppTheme.h3),
+              backgroundColor: NaraColors.surfaceWhite,
+              title: Text(tr('Bayar Sebagian', 'Pay Partially'), style: NaraTextStyles.h3),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -999,14 +1278,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   children: [
                     Text(
                       tr('Sisa utang yang dapat dibayar:', 'Remaining debt you can pay:'),
-                      style: AppTheme.body.copyWith(color: AppTheme.outline),
+                      style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Semantics(
                       label: tr('Sisa utang', 'Remaining debt'),
                       child: Text(
                         'Rp ${_formatCurrency(remainingAmount)}',
-                        style: AppTheme.h2.copyWith(color: AppTheme.primary),
+                        style: NaraTextStyles.h2.copyWith(color: NaraColors.primary),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -1017,13 +1296,13 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         controller: amountController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
+                          _ThousandsSeparatorInputFormatter(),
                         ],
                         decoration: InputDecoration(
                           hintText: tr('Masukkan nominal pembayaran', 'Enter payment amount'),
                           prefixText: 'Rp ',
                           filled: true,
-                          fillColor: AppTheme.surfaceContainer,
+                          fillColor: NaraColors.surfaceCard,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
@@ -1053,7 +1332,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     button: true,
                     enabled: true,
                     label: tr('Batalkan pembayaran', 'Cancel payment'),
-                    child: Text(tr('Batal', 'Cancel'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                    child: Text(
+                      tr('Batal', 'Cancel'),
+                      style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                    ),
                   ),
                 ),
                 ElevatedButton(
@@ -1065,7 +1347,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             dialogContext: dialogContext,
                             provider: provider,
                             debtIndex: debtIndex,
-                            paymentAmount: int.parse(amountController.text),
+                            paymentAmount: _parseAmountInput(amountController.text),
                             amountController: amountController,
                           );
                         }
@@ -1075,10 +1357,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     enabled: _isValidPaymentAmount(amountController.text, remainingAmount),
                     label: _isValidPaymentAmount(amountController.text, remainingAmount)
                         ? (isEnglish
-                            ? 'Continue payment with amount Rp ${_formatCurrency(int.parse(amountController.text))}'
-                            : 'Lanjutkan pembayaran dengan nominal Rp ${_formatCurrency(int.parse(amountController.text))}')
+                            ? 'Continue payment with amount Rp ${_formatCurrency(_parseAmountInput(amountController.text))}'
+                            : 'Lanjutkan pembayaran dengan nominal Rp ${_formatCurrency(_parseAmountInput(amountController.text))}')
                         : tr('Nominal pembayaran tidak valid', 'Invalid payment amount'),
-                    child: Text(tr('Lanjut', 'Continue'), style: AppTheme.label),
+                    child: Text(tr('Lanjut', 'Continue'), style: NaraTextStyles.label),
                   ),
                 ),
               ],
@@ -1090,7 +1372,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   }
 
   bool _isValidPaymentAmount(String input, int remainingAmount) {
-    final amount = int.tryParse(input) ?? 0;
+    final amount = _parseAmountInput(input);
     return amount > 0 && amount <= remainingAmount;
   }
 
@@ -1099,17 +1381,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     int remainingAmount, {
     required bool isEnglish,
   }) {
-    final amount = int.tryParse(input) ?? 0;
+    final bodyStyle = NaraTextStyles.body;
+    final amount = _parseAmountInput(input);
 
     if (amount <= 0) {
       return Row(
         children: [
-          Icon(Icons.error_outline, color: AppTheme.error, size: 16),
+          Icon(Icons.error_outline, color: NaraColors.danger, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               isEnglish ? 'Amount must be greater than 0' : 'Nominal harus lebih dari 0',
-              style: AppTheme.body.copyWith(color: AppTheme.error),
+              style: bodyStyle.copyWith(color: NaraColors.danger),
             ),
           ),
         ],
@@ -1119,14 +1402,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     if (amount > remainingAmount) {
       return Row(
         children: [
-          Icon(Icons.error_outline, color: AppTheme.error, size: 16),
+          Icon(Icons.error_outline, color: NaraColors.danger, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               isEnglish
                   ? 'Exceeds remaining debt by Rp ${_formatCurrency(amount - remainingAmount)}'
                   : 'Melebihi sisa utang sebesar Rp ${_formatCurrency(amount - remainingAmount)}',
-              style: AppTheme.body.copyWith(color: AppTheme.error),
+              style: bodyStyle.copyWith(color: NaraColors.danger),
             ),
           ),
         ],
@@ -1135,14 +1418,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     return Row(
       children: [
-        Icon(Icons.check_circle_outline, color: AppTheme.primary, size: 16),
+        Icon(Icons.check_circle_outline, color: NaraColors.primary, size: 16),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             isEnglish
                 ? 'Remaining after payment: Rp ${_formatCurrency(remainingAmount - amount)}'
                 : 'Sisa setelah pembayaran: Rp ${_formatCurrency(remainingAmount - amount)}',
-            style: AppTheme.body.copyWith(color: AppTheme.primary),
+            style: bodyStyle.copyWith(color: NaraColors.primary),
           ),
         ),
       ],
@@ -1162,10 +1445,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       context: context,
       builder: (confirmContext) {
         return AlertDialog(
-          backgroundColor: AppTheme.surfaceContainerLow,
+          backgroundColor: NaraColors.surfaceWhite,
           title: Semantics(
             label: tr('Dialog konfirmasi pembayaran utang', 'Debt payment confirmation dialog'),
-            child: Text(tr('Konfirmasi Pembayaran', 'Payment Confirmation'), style: AppTheme.h3),
+            child: Text(tr('Konfirmasi Pembayaran', 'Payment Confirmation'), style: NaraTextStyles.h3),
           ),
           content: Semantics(
             label: tr(
@@ -1177,7 +1460,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 'Bayar sebesar Rp ${_formatCurrency(paymentAmount)}?',
                 'Pay Rp ${_formatCurrency(paymentAmount)}?',
               ),
-              style: AppTheme.body,
+              style: NaraTextStyles.body,
             ),
           ),
           actions: [
@@ -1190,7 +1473,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 button: true,
                 enabled: true,
                 label: tr('Batalkan pembayaran', 'Cancel payment'),
-                child: Text(tr('Batal', 'Cancel'), style: AppTheme.label.copyWith(color: AppTheme.outline)),
+                child: Text(
+                  tr('Batal', 'Cancel'),
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                ),
               ),
             ),
             ElevatedButton(
@@ -1199,20 +1485,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 provider.updateDebtPayment(debtIndex, paymentAmount);
                 Navigator.pop(confirmContext);
                 Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Semantics(
-                label: tr('Pembayaran berhasil', 'Payment successful'),
-                      child: Text(
-                        tr(
-                          'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
-                          'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
-                        ),
-                        style: AppTheme.body,
+                showAppSnackBar(
+                  context,
+                  backgroundColor: NaraColors.primary,
+                  content: Semantics(
+                    label: tr('Pembayaran berhasil', 'Payment successful'),
+                    child: Text(
+                      tr(
+                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                        'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
                       ),
+                      style: NaraTextStyles.body,
                     ),
-                    backgroundColor: AppTheme.primary,
-                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               },
@@ -1223,7 +1507,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   'Konfirmasi pembayaran sebesar Rp ${_formatCurrency(paymentAmount)}',
                   'Confirm payment amount Rp ${_formatCurrency(paymentAmount)}',
                 ),
-                child: Text(tr('Bayar', 'Pay'), style: AppTheme.label),
+                child: Text(tr('Bayar', 'Pay'), style: NaraTextStyles.label),
               ),
             ),
           ],
@@ -1237,6 +1521,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (match) => '${match.group(1)}.',
         );
+  }
+
+  int _parseAmountInput(String input) {
+    final normalized = input.replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(normalized) ?? 0;
   }
 
   String _debtReminderScheduleLabel({
@@ -1291,6 +1580,80 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     return remaining < 0 ? 0 : remaining;
   }
 
+  bool _isDebtOverdue(Map<String, dynamic> debt) {
+    final status = (debt['status'] as String?) ?? 'berjalan';
+    if (status == 'lunas') return false;
+    final dueDateRaw = (debt['dueDate'] as String?)?.trim() ?? '';
+    if (dueDateRaw.isEmpty) return false;
+    final dueDate = _parseDebtDueDate(dueDateRaw);
+    if (dueDate == null) return false;
+    final today = DateUtils.dateOnly(DateTime.now());
+    return DateUtils.dateOnly(dueDate).isBefore(today);
+  }
+
+  int _compareDebtItemsForDefaultOrder(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final aPaid = ((a['status'] as String?) ?? 'berjalan') == 'lunas';
+    final bPaid = ((b['status'] as String?) ?? 'berjalan') == 'lunas';
+    if (aPaid != bPaid) {
+      return aPaid ? 1 : -1;
+    }
+
+    final aDue = _parseDebtDueDate((a['dueDate'] as String?) ?? '');
+    final bDue = _parseDebtDueDate((b['dueDate'] as String?) ?? '');
+    if (aDue == null && bDue != null) return 1;
+    if (aDue != null && bDue == null) return -1;
+    if (aDue != null && bDue != null) {
+      return DateUtils.dateOnly(aDue).compareTo(DateUtils.dateOnly(bDue));
+    }
+
+    final aCreated = DateTime.tryParse((a['createdAt'] as String?) ?? '');
+    final bCreated = DateTime.tryParse((b['createdAt'] as String?) ?? '');
+    if (aCreated != null && bCreated != null) {
+      return bCreated.compareTo(aCreated);
+    }
+    return 0;
+  }
+
+  DateTime? _parseDebtDueDate(String raw) {
+    final direct = DateTime.tryParse(raw);
+    if (direct != null) return direct;
+    final normalized = raw.replaceAll(',', '').trim();
+    final match = RegExp(r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$').firstMatch(normalized);
+    if (match == null) return null;
+    final day = int.tryParse(match.group(1) ?? '');
+    final monthName = (match.group(2) ?? '').toLowerCase();
+    final year = int.tryParse(match.group(3) ?? '');
+    if (day == null || year == null) return null;
+    const months = <String, int>{
+      'jan': 1,
+      'januari': 1,
+      'feb': 2,
+      'februari': 2,
+      'mar': 3,
+      'maret': 3,
+      'apr': 4,
+      'april': 4,
+      'mei': 5,
+      'jun': 6,
+      'juni': 6,
+      'jul': 7,
+      'juli': 7,
+      'agu': 8,
+      'agustus': 8,
+      'sep': 9,
+      'september': 9,
+      'okt': 10,
+      'oktober': 10,
+      'nov': 11,
+      'november': 11,
+      'des': 12,
+      'desember': 12,
+    };
+    final month = months[monthName];
+    if (month == null) return null;
+    return DateTime(year, month, day);
+  }
+
   String _filterDescription(BuildContext context, _TransactionFilterPreset preset, DateTime? customDate) {
     final isEnglish = context.read<AppProvider>().language == 'English';
     switch (preset) {
@@ -1309,6 +1672,127 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
   String _formatDateLabel(BuildContext context, DateTime date) {
     return MaterialLocalizations.of(context).formatMediumDate(date);
+  }
+
+  Map<String, int> _buildCategoryTotals(
+    List<Map<String, dynamic>> items,
+    String Function(String, String) tr,
+  ) {
+    final totals = <String, int>{};
+    for (final item in items) {
+      final rawCategory = (item['category'] as String?)?.trim();
+      final category = (rawCategory == null || rawCategory.isEmpty)
+          ? tr('Lainnya', 'Others')
+          : rawCategory;
+      final amount = ((item['amount'] as num?)?.round() ?? 0);
+      totals[category] = (totals[category] ?? 0) + amount;
+    }
+    return totals;
+  }
+
+  List<MapEntry<String, int>> _sortCategoryTotals(Map<String, int> totals) {
+    final entries = totals.entries.toList();
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    return entries;
+  }
+
+  Map<String, int> _buildCategoryPercentages(
+    List<MapEntry<String, int>> entries,
+    num totalAmount,
+  ) {
+    final total = totalAmount <= 0 ? 0.0 : totalAmount.toDouble();
+    final percents = <String, int>{};
+    for (final entry in entries) {
+      final pct = total == 0 ? 0 : ((entry.value / total) * 100).round();
+      percents[entry.key] = pct;
+    }
+    return percents;
+  }
+
+  List<double> _buildGradientStops(
+    List<MapEntry<String, int>> entries,
+    Map<String, int> percents,
+    int maxItems,
+  ) {
+    final stops = <double>[];
+    double accumulated = 0;
+    for (int i = 0; i < maxItems; i++) {
+      final key = entries[i].key;
+      accumulated += (percents[key] ?? 0) / 100;
+      stops.add(accumulated.clamp(0, 1));
+    }
+    if (stops.isEmpty) return [1.0];
+    return stops;
+  }
+
+  Widget _buildCategoryChartRow({
+    required List<MapEntry<String, int>> sortedCategories,
+    required Map<String, int> categoryPercentages,
+    required List<Color> colors,
+    required ColorScheme scheme,
+    required TextStyle bodyStyle,
+    required String emptyText,
+    IconData icon = Icons.show_chart_rounded,
+  }) {
+    final maxItems = sortedCategories.length > 4 ? 4 : sortedCategories.length;
+    final hasData = maxItems > 0;
+    final chartColors = hasData
+        ? List<Color>.generate(maxItems, (i) => colors[i % colors.length])
+        : [
+            scheme.outlineVariant.withValues(alpha: 0.4),
+            NaraColors.textHint.withValues(alpha: 0.4),
+          ];
+    final stops = hasData
+        ? _buildGradientStops(sortedCategories, categoryPercentages, maxItems)
+        : const [0.5, 1.0];
+
+    return Row(
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(
+              colors: chartColors,
+              stops: stops,
+            ),
+          ),
+          child: Center(
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Icon(icon, color: scheme.onSurfaceVariant, size: 20),
+            ),
+          ),
+        ),
+        const SizedBox(width: 24),
+        Expanded(
+          child: hasData
+              ? Column(
+                  children: [
+                    for (int i = 0; i < maxItems; i++)
+                      _CategoryLegendItem(
+                        label: sortedCategories[i].key,
+                        percentage: '${categoryPercentages[sortedCategories[i].key] ?? 0}%',
+                        color: chartColors[i % chartColors.length],
+                      ),
+                  ],
+                )
+              : Text(
+                  emptyText,
+                  style: bodyStyle.copyWith(color: scheme.onSurfaceVariant),
+                ),
+        ),
+      ],
+    );
   }
 
   IconData _iconFromName(String iconName) {
@@ -1435,7 +1919,32 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
 enum _TransactionFilterPreset { month, week, year, custom }
 
-enum _DebtFilter { all, unpaid, paid }
+enum _DebtFilter { all, unpaid, paid, overdue }
+enum _DebtTypeFilter { all, debt, receivable }
+enum _DebtDueFilter { all, today, next7Days, overdue }
+
+class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.isEmpty) {
+      return const TextEditingValue(text: '');
+    }
+
+    final formatted = digitsOnly.replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (match) => '${match.group(1)}.',
+    );
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 class _FilterChip extends StatelessWidget {
   final String label;
@@ -1446,30 +1955,10 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return NaraChip(
+      label: label,
+      selected: isSelected,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.primary.withValues(alpha: 0.14)
-              : AppTheme.surfaceContainerLow.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected
-                ? AppTheme.primary.withValues(alpha: 0.7)
-                : AppTheme.outlineVariant.withValues(alpha: 0.45),
-          ),
-        ),
-        child: Text(
-          label,
-          style: AppTheme.label.copyWith(
-            color: isSelected ? AppTheme.primary : AppTheme.outline,
-            fontSize: 12,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1491,42 +1980,39 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return NaraCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceContainer.withValues(alpha: 0.52),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: AppTheme.outlineVariant.withValues(alpha: 0.25),
+      borderRadius: NaraRadius.md,
+      padding: const EdgeInsets.all(14),
+      backgroundColor: NaraColors.surfaceWhite,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: NaraTextStyles.label),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NaraTextStyles.bodySmall.copyWith(fontSize: 12),
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTheme.label),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: AppTheme.body.copyWith(fontSize: 12, color: AppTheme.outline)),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1547,8 +2033,16 @@ class _CategoryLegendItem extends StatelessWidget {
         children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
-          Expanded(child: Text(label, style: AppTheme.label.copyWith(fontSize: 12, color: AppTheme.onSurfaceVariant))),
-          Text(percentage, style: AppTheme.label.copyWith(fontSize: 12, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(
+              label,
+              style: NaraTextStyles.label.copyWith(fontSize: 12, color: NaraColors.textSecondary),
+            ),
+          ),
+          Text(
+            percentage,
+            style: NaraTextStyles.label.copyWith(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -1561,6 +2055,7 @@ class _TransactionItem extends StatelessWidget {
   final String subtitle;
   final String amount;
   final Color amountColor;
+  final VoidCallback? onTap;
 
   const _TransactionItem({
     required this.icon,
@@ -1568,33 +2063,51 @@ class _TransactionItem extends StatelessWidget {
     required this.subtitle,
     required this.amount,
     required this.amountColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
+    return NaraCard(
+      onTap: onTap,
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 12),
-      borderRadius: 18,
+      borderRadius: NaraRadius.md,
+      backgroundColor: NaraColors.surfaceWhite,
       child: Row(
         children: [
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(color: AppTheme.surfaceContainer, shape: BoxShape.circle),
-            child: Icon(icon, color: AppTheme.primary, size: 22),
+            decoration: const BoxDecoration(color: NaraColors.surfaceCard, shape: BoxShape.circle),
+            child: Icon(icon, color: NaraColors.primary, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTheme.label),
-                Text(subtitle, style: AppTheme.body.copyWith(fontSize: 11, color: AppTheme.outline)),
+                Text(
+                  title,
+                  style: NaraTextStyles.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NaraTextStyles.bodySmall.copyWith(fontSize: 11),
+                ),
               ],
             ),
           ),
-          Text(amount, style: AppTheme.label.copyWith(color: amountColor, fontWeight: FontWeight.bold)),
+          Text(
+            amount,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: NaraTextStyles.label.copyWith(color: amountColor, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -1606,23 +2119,30 @@ class _DebtSummaryCard extends StatelessWidget {
   final String amount;
   final Color color;
 
-  const _DebtSummaryCard({required this.label, required this.amount, required this.color});
+  const _DebtSummaryCard({
+    required this.label,
+    required this.amount,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NaraCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainer.withValues(alpha: 0.56),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
+      borderRadius: NaraRadius.lg,
+      backgroundColor: NaraColors.surfaceWhite,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppTheme.label.copyWith(fontSize: 12, color: AppTheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: NaraTextStyles.label.copyWith(fontSize: 12, color: NaraColors.textSecondary),
+          ),
           const SizedBox(height: 8),
-          Text(amount, style: AppTheme.h3.copyWith(color: color, fontWeight: FontWeight.bold)),
+          Text(
+            amount,
+            style: NaraTextStyles.h3.copyWith(color: color, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -1644,7 +2164,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
-      child: Text(label, style: AppTheme.label.copyWith(fontSize: 10, color: color)),
+      child: Text(label, style: NaraTextStyles.label.copyWith(fontSize: 10, color: color)),
     );
   }
 }
@@ -1654,16 +2174,19 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color color;
   final Color textColor;
+  final Color? borderColor;
 
   const _ActionButton({
     required this.label,
     required this.onTap,
     required this.color,
     required this.textColor,
+    this.borderColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -1673,7 +2196,7 @@ class _ActionButton extends StatelessWidget {
           color: color.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: textColor.withValues(alpha: 0.18),
+            color: (borderColor ?? scheme.outlineVariant).withValues(alpha: 0.4),
           ),
         ),
         child: Center(
@@ -1681,7 +2204,7 @@ class _ActionButton extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTheme.label.copyWith(color: textColor, fontWeight: FontWeight.w600),
+            style: NaraTextStyles.label.copyWith(color: textColor, fontWeight: FontWeight.w600),
           ),
         ),
       ),

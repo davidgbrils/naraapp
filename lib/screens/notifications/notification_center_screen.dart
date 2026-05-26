@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/formatters.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme/nara_colors.dart';
 import '../../core/theme/nara_spacing.dart';
 import '../../core/theme/nara_text_styles.dart';
@@ -42,6 +43,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   Future<void> _saveReadIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_readIdsKey, _readIds.toList());
+    if (mounted) {
+      context.read<AppProvider>().bumpNotificationFeedVersion();
+    }
   }
 
   Future<void> _loadHiddenIds() async {
@@ -54,6 +58,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   Future<void> _saveHiddenIds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_hiddenIdsKey, _hiddenIds.toList());
+    if (mounted) {
+      context.read<AppProvider>().bumpNotificationFeedVersion();
+    }
   }
 
   void _markAsRead(String id) {
@@ -225,12 +232,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           ];
 
           allItems.sort((a, b) {
-            final aPriority = _priorityForNotification(a, now);
-            final bPriority = _priorityForNotification(b, now);
-            if (aPriority != bPriority) return aPriority.compareTo(bPriority);
             final aTime = a.sortTime ?? DateTime.fromMillisecondsSinceEpoch(0);
             final bTime = b.sortTime ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return aTime.compareTo(bTime);
+            return bTime.compareTo(aTime); // newest first
           });
 
           final notHiddenItems = allItems.where((item) => !_hiddenIds.contains(item.id)).toList();
@@ -331,16 +335,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     return null;
   }
 
-  int _priorityForNotification(_NotificationItem item, DateTime now) {
-    final time = item.sortTime;
-    if (time == null) return 3;
-    final today = DateTime(now.year, now.month, now.day);
-    final itemDay = DateTime(time.year, time.month, time.day);
-    if (itemDay.isBefore(today)) return 0;
-    if (itemDay == today) return 1;
-    return 2;
-  }
-
   DateTime? _parseIndonesianDate(String raw) {
     if (raw.isEmpty) return null;
     final normalized = raw.replaceAll(',', '').trim();
@@ -421,7 +415,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   void _showNotificationDetail(BuildContext context, _NotificationItem item) {
-    final provider = context.read<AppProvider>();
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -452,98 +445,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 Text(item.subtitle, style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary)),
                 const SizedBox(height: NaraSpacing.sm),
                 Text(item.detail, style: NaraTextStyles.body),
-                if (item.type == _NotificationFilter.reminder && item.reminderIndex != null) ...[
-                  const SizedBox(height: NaraSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: NaraSecondaryButton(
-                          label: 'Tunda 5 menit',
-                          onPressed: () {
-                            provider.snoozeReminderByIndex(item.reminderIndex!, seconds: 300);
-                            Navigator.pop(sheetContext);
-                          },
-                          fullWidth: true,
-                        ),
-                      ),
-                      const SizedBox(width: NaraSpacing.sm),
-                      Expanded(
-                        child: NaraPrimaryButton(
-                          label: 'Tandai selesai',
-                          onPressed: () {
-                            provider.toggleReminderStatus(item.reminderIndex!);
-                            Navigator.pop(sheetContext);
-                          },
-                          fullWidth: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (item.type == _NotificationFilter.debt && item.debtId != null) ...[
-                  const SizedBox(height: NaraSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: NaraSecondaryButton(
-                          label: 'Ingatkan lagi',
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            final navigator = Navigator.of(sheetContext);
-                            if (!provider.notificationsEnabled || !provider.debtNotificationsEnabled) {
-                              navigator.pop();
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(I18n.t(context, 'notif_debt_disabled_warning')),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                              return;
-                            }
-                            await provider.sendDebtReminderById(item.debtId!);
-                            if (!mounted) return;
-                            navigator.pop();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Pengingat utang/piutang berhasil dikirim.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                          fullWidth: true,
-                        ),
-                      ),
-                      const SizedBox(width: NaraSpacing.sm),
-                      Expanded(
-                        child: NaraPrimaryButton(
-                          label: 'Tandai lunas',
-                          onPressed: () {
-                            provider.markDebtAsPaidById(item.debtId!);
-                            Navigator.of(sheetContext).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Utang/piutang ditandai lunas.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                          fullWidth: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (item.type == _NotificationFilter.transaction) ...[
-                  const SizedBox(height: NaraSpacing.md),
-                  NaraPrimaryButton(
-                    label: 'Buka menu Transaksi',
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                      Navigator.pushNamed(context, '/transaction');
-                    },
-                    fullWidth: true,
-                  ),
-                ],
                 const SizedBox(height: NaraSpacing.lg),
               ],
             ),
@@ -634,26 +535,21 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ),
       ),
       onDismissed: (direction) async {
-        final messenger = ScaffoldMessenger.of(context);
         final markedReadText = I18n.t(context, 'notif_marked_read');
         final removedText = I18n.t(context, 'notif_removed_from_feed');
         if (direction == DismissDirection.startToEnd) {
           _markAsRead(item.id);
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(markedReadText),
-              behavior: SnackBarBehavior.floating,
-            ),
+          showAppSnackBar(
+            context,
+            content: Text(markedReadText),
           );
           return;
         }
         await _hideNotification(item.id);
         if (!mounted) return;
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(removedText),
-            behavior: SnackBarBehavior.floating,
-          ),
+        showAppSnackBar(
+          context,
+          content: Text(removedText),
         );
       },
       child: GestureDetector(

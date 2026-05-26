@@ -49,9 +49,10 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: NaraColors.textPrimary),
-            onPressed: () => Navigator.pushNamed(context, '/notifications'),
+          NotificationBellButton(
+            iconColor: NaraColors.textPrimary,
+            tooltip: I18n.t(context, 'notifications'),
+            padding: EdgeInsets.zero,
           ),
           const SizedBox(width: 8),
         ],

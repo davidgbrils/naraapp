@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../components/index.dart';
 import '../../core/formatters.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme/nara_colors.dart';
 import '../../core/theme/nara_radius.dart';
 import '../../core/theme/nara_spacing.dart';
@@ -36,13 +37,12 @@ class _AddDebtScreenState extends State<AddDebtScreen> {
     final amount = parseRupiahInput(_amountController.text);
 
     if (personName.isEmpty || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: NaraColors.surfaceWhite,
-          content: Text(
-            I18n.t(context, 'invalid_name_amount'),
-            style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
-          ),
+      showAppSnackBar(
+        context,
+        backgroundColor: NaraColors.surfaceWhite,
+        content: Text(
+          I18n.t(context, 'invalid_name_amount'),
+          style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
         ),
       );
       return;

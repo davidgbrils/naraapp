@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   flutter_timezone
-  flutter_tts
   sentry_flutter
   share_plus
   speech_to_text_windows

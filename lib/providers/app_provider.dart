@@ -78,6 +78,7 @@ class AppProvider extends ChangeNotifier {
   bool _reminderNotificationsEnabled = true;
   bool _debtNotificationsEnabled = true;
   bool _transactionNotificationsEnabled = true;
+  int _notificationFeedVersion = 0;
   
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isLoggedIn => _isLoggedIn;
@@ -94,6 +95,7 @@ class AppProvider extends ChangeNotifier {
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
   bool get debtNotificationsEnabled => _debtNotificationsEnabled;
   bool get transactionNotificationsEnabled => _transactionNotificationsEnabled;
+  int get notificationFeedVersion => _notificationFeedVersion;
   
   Future<void> completeOnboarding() async {
     _isOnboardingComplete = true;
@@ -216,6 +218,11 @@ class AppProvider extends ChangeNotifier {
 
   void setAppInForeground(bool value) {
     _isAppInForeground = value;
+  }
+
+  void bumpNotificationFeedVersion() {
+    _notificationFeedVersion++;
+    notifyListeners();
   }
   
   // Voice state

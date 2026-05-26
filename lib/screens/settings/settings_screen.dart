@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../components/index.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme/nara_colors.dart';
 import '../../core/theme/nara_radius.dart';
 import '../../core/theme/nara_spacing.dart';
@@ -255,13 +256,12 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _backupData(BuildContext context, AppProvider provider) async {
     await provider.saveAllData();
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: NaraColors.surfaceWhite,
-          content: Text(
-            I18n.t(context, 'backup_success'),
-            style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
-          ),
+      showAppSnackBar(
+        context,
+        backgroundColor: NaraColors.surfaceWhite,
+        content: Text(
+          I18n.t(context, 'backup_success'),
+          style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
         ),
       );
     }
@@ -292,13 +292,12 @@ class SettingsScreen extends StatelessWidget {
     if (confirm == true) {
       await provider.clearAllData();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: NaraColors.surfaceWhite,
-            content: Text(
-              I18n.t(context, 'clear_success'),
-              style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
-            ),
+        showAppSnackBar(
+          context,
+          backgroundColor: NaraColors.surfaceWhite,
+          content: Text(
+            I18n.t(context, 'clear_success'),
+            style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
           ),
         );
       }
@@ -309,13 +308,12 @@ class SettingsScreen extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_hiddenActivityIdsKey);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: NaraColors.surfaceWhite,
-        content: Text(
-          'Feed histori aktivitas berhasil direset.',
-          style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
-        ),
+    showAppSnackBar(
+      context,
+      backgroundColor: NaraColors.surfaceWhite,
+      content: Text(
+        'Feed histori aktivitas berhasil direset.',
+        style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/formatters.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme/nara_colors.dart';
 import '../../core/theme/nara_radius.dart';
 import '../../core/theme/nara_spacing.dart';
@@ -231,10 +232,10 @@ class _HomeContentState extends State<_HomeContent> {
               actions: [
                 Padding(
                   padding: const EdgeInsets.only(top: 12, right: 8),
-                  child: IconButton(
+                  child: NotificationBellButton(
+                    iconColor: NaraColors.textPrimary,
                     tooltip: I18n.t(context, 'notifications'),
-                    onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                    icon: const Icon(Icons.notifications_outlined, color: NaraColors.textPrimary),
+                    padding: EdgeInsets.zero,
                   ),
                 ),
               ],
@@ -834,22 +835,22 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                           await _saveRecentVoiceCommands();
                           if (!context.mounted) return;
                           final isEnglish = Localizations.localeOf(context).languageCode == 'en';
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                I18n.t(context, 'history_cleared'),
-                              ),
-                              action: SnackBarAction(
-                                label: isEnglish ? 'Undo' : 'Urungkan',
-                                onPressed: () async {
-                                  setState(() {
-                                    _recentVoiceCommands
-                                      ..clear()
-                                      ..addAll(removedItems.take(5));
-                                  });
-                                  await _saveRecentVoiceCommands();
-                                },
-                              ),
+                          showAppSnackBar(
+                            context,
+                            duration: const Duration(seconds: 3),
+                            content: Text(
+                              I18n.t(context, 'history_cleared'),
+                            ),
+                            action: SnackBarAction(
+                              label: isEnglish ? 'Undo' : 'Urungkan',
+                              onPressed: () async {
+                                setState(() {
+                                  _recentVoiceCommands
+                                    ..clear()
+                                    ..addAll(removedItems.take(5));
+                                });
+                                await _saveRecentVoiceCommands();
+                              },
                             ),
                           );
                         },
@@ -918,20 +919,19 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                         });
                         await _saveRecentVoiceCommands();
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              I18n.t(context, 'command_deleted'),
-                            ),
-                            action: SnackBarAction(
-                              label: isEnglish ? 'Undo' : 'Urungkan',
-                              onPressed: () async {
-                                setState(() {
-                                  _addRecentVoiceCommand(removedCommand);
-                                });
-                                await _saveRecentVoiceCommands();
-                              },
-                            ),
+                        showAppSnackBar(
+                          context,
+                          content: Text(
+                            I18n.t(context, 'command_deleted'),
+                          ),
+                          action: SnackBarAction(
+                            label: isEnglish ? 'Undo' : 'Urungkan',
+                            onPressed: () async {
+                              setState(() {
+                                _addRecentVoiceCommand(removedCommand);
+                              });
+                              await _saveRecentVoiceCommands();
+                            },
                           ),
                         );
                       },
@@ -1135,23 +1135,20 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
     }
     _lastVoiceDisabledSnackAt = now;
     _isVoiceDisabledSnackVisible = true;
-    final messenger = ScaffoldMessenger.of(context);
-    final controller = messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-          I18n.t(context, 'voice_beta_disabled_settings'),
-        ),
-        duration: const Duration(seconds: 2),
-        action: SnackBarAction(
-          label: I18n.t(context, 'open_short'),
-          onPressed: () {
-            Navigator.pushNamed(context, '/settings');
-          },
-        ),
+    showAppSnackBar(
+      context,
+      content: Text(
+        I18n.t(context, 'voice_beta_disabled_settings'),
+      ),
+      duration: const Duration(seconds: 2),
+      action: SnackBarAction(
+        label: I18n.t(context, 'open_short'),
+        onPressed: () {
+          Navigator.pushNamed(context, '/settings');
+        },
       ),
     );
-    controller.closed.then((_) {
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       _isVoiceDisabledSnackVisible = false;
     });
@@ -1372,7 +1369,6 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
             return;
           }
 
-          final messenger = ScaffoldMessenger.of(context);
           final isEnglish = Localizations.localeOf(context).languageCode == 'en';
           final summary = _voiceActionSummary(action, isEnglish);
           bool approved = true;
@@ -1403,15 +1399,14 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           final saved = await provider.applyPendingVoiceAction(approved: approved);
           if (!mounted) return;
           _isShowing = false;
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                approved
-                    ? (saved
-                        ? (isEnglish ? 'Voice command saved.' : 'Perintah suara berhasil disimpan.')
-                        : (isEnglish ? 'Voice command failed to save.' : 'Perintah suara gagal disimpan.'))
-                    : (isEnglish ? 'Voice command canceled.' : 'Perintah suara dibatalkan.'),
-              ),
+          showAppSnackBar(
+            context,
+            content: Text(
+              approved
+                  ? (saved
+                      ? (isEnglish ? 'Voice command saved.' : 'Perintah suara berhasil disimpan.')
+                      : (isEnglish ? 'Voice command failed to save.' : 'Perintah suara gagal disimpan.'))
+                  : (isEnglish ? 'Voice command canceled.' : 'Perintah suara dibatalkan.'),
             ),
           );
         });
@@ -1612,11 +1607,9 @@ class _RecentActivityListState extends State<_RecentActivityList> {
                         onDismissed: _hideActivity,
                         onTap: () {
                           provider.setNavIndex(1);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(I18n.t(context, 'opening_transaction_menu')),
-                              behavior: SnackBarBehavior.floating,
-                            ),
+                          showAppSnackBar(
+                            context,
+                            content: Text(I18n.t(context, 'opening_transaction_menu')),
                           );
                         },
                       ),
@@ -1713,11 +1706,9 @@ class _ActivityItem extends StatelessWidget {
       onDismissed: (_) async {
         await onDismissed(id);
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(I18n.t(context, 'activity_hidden_from_feed')),
-            behavior: SnackBarBehavior.floating,
-          ),
+        showAppSnackBar(
+          context,
+          content: Text(I18n.t(context, 'activity_hidden_from_feed')),
         );
       },
       child: NaraCard(
@@ -2079,8 +2070,9 @@ class _ProfileEditScreenState extends State<_ProfileEditScreen> {
     await provider.setUserName(_nameController.text.trim());
     await provider.setProfileImagePath(_imagePath);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Profile updated' : 'Profil berhasil diperbarui')),
+    showAppSnackBar(
+      context,
+      content: Text(Localizations.localeOf(context).languageCode == 'en' ? 'Profile updated' : 'Profil berhasil diperbarui'),
     );
     Navigator.pop(context);
   }
@@ -2188,8 +2180,9 @@ class _ProfileBackupScreen extends StatelessWidget {
   Future<void> _backup(BuildContext context) async {
     await context.read<AppProvider>().saveAllData();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(I18n.t(context, 'backup_success'))),
+    showAppSnackBar(
+      context,
+      content: Text(I18n.t(context, 'backup_success')),
     );
   }
 

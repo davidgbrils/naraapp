@@ -189,18 +189,19 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: width,
       height: height,
       margin: margin,
       padding: padding ?? const EdgeInsets.all(AppTheme.spacingMd),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceContainer.withValues(alpha: 0.4),
+        color: scheme.surface.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryContainer.withValues(alpha: 0.1),
+            color: scheme.primary.withValues(alpha: 0.12),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),

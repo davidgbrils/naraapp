@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../core/formatters.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../components/index.dart';
 import '../../core/theme/nara_colors.dart';
 import '../../core/theme/nara_radius.dart';
@@ -406,19 +407,17 @@ class _ReportScreenState extends State<ReportScreen> {
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        backgroundColor: NaraColors.surfaceWhite,
-        content: Text(
-          '${I18n.t(context, 'download_success')} $filePath',
-          style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
-        ),
-        action: SnackBarAction(
-          label: 'Bagikan',
-          onPressed: () => _shareReportFile(file),
-          textColor: NaraColors.primary,
-        ),
+    showAppSnackBar(
+      context,
+      backgroundColor: NaraColors.surfaceWhite,
+      content: Text(
+        '${I18n.t(context, 'download_success')} $filePath',
+        style: NaraTextStyles.body.copyWith(color: NaraColors.textPrimary),
+      ),
+      action: SnackBarAction(
+        label: 'Bagikan',
+        onPressed: () => _shareReportFile(file),
+        textColor: NaraColors.primary,
       ),
     );
     if (shareAfterDownload) {
@@ -545,8 +544,9 @@ class _ReportScreenState extends State<ReportScreen> {
     if (!await file.exists()) {
       await _removeHistoryByPath(item.filePath);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File tidak ditemukan. Riwayat sudah dibersihkan.')),
+      showAppSnackBar(
+        context,
+        content: const Text('File tidak ditemukan. Riwayat sudah dibersihkan.'),
       );
       return;
     }
@@ -558,8 +558,9 @@ class _ReportScreenState extends State<ReportScreen> {
     if (!await file.exists()) {
       await _removeHistoryByPath(item.filePath);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File tidak ditemukan. Riwayat sudah dibersihkan.')),
+      showAppSnackBar(
+        context,
+        content: const Text('File tidak ditemukan. Riwayat sudah dibersihkan.'),
       );
       return;
     }
@@ -1524,12 +1525,10 @@ class _TrendChartCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: GestureDetector(
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            content: Text(
-                              '${point.label} • Pemasukan ${formatRupiah(point.income)} • Pengeluaran ${formatRupiah(point.expense)}',
-                            ),
+                        showAppSnackBar(
+                          context,
+                          content: Text(
+                            '${point.label} • Pemasukan ${formatRupiah(point.income)} • Pengeluaran ${formatRupiah(point.expense)}',
                           ),
                         );
                       },
