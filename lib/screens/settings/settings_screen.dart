@@ -12,6 +12,7 @@ import '../../core/theme/nara_spacing.dart';
 import '../../core/theme/nara_text_styles.dart';
 import '../../providers/app_provider.dart';
 import '../../services/notification_service.dart';
+import '../../core/formatters.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -265,6 +266,62 @@ class SettingsScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  Future<void> _showBudgetDialog(BuildContext context, AppProvider provider) async {
+    final controller = TextEditingController(
+      text: provider.monthlyBudget > 0 ? provider.monthlyBudget.toString() : '',
+    );
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(I18n.t(context, 'monthly_budget'), style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              I18n.t(context, 'monthly_budget_hint'),
+              style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
+            ),
+            const SizedBox(height: NaraSpacing.md),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: InputDecoration(
+                prefixText: 'Rp ',
+                hintText: I18n.t(context, 'budget_input_hint'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(I18n.t(context, 'cancel'), style: NaraTextStyles.label),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final value = parseRupiahInput(controller.text);
+              await provider.setMonthlyBudget(value);
+              if (!context.mounted) return;
+              showAppSnackBar(
+                context,
+                content: Text(
+                  value > 0
+                      ? I18n.t(context, 'budget_saved')
+                      : (isEnglish ? 'Monthly budget cleared' : 'Anggaran bulanan dihapus'),
+                ),
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: Text(I18n.t(context, 'save'), style: NaraTextStyles.label),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _confirmClearData(BuildContext context, AppProvider provider) async {
@@ -555,6 +612,15 @@ class SettingsScreen extends StatelessWidget {
                     title: I18n.t(context, 'language'),
                     subtitle: provider.language,
                     onTap: () => _showLanguageDialog(context, provider),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
+                    icon: Icons.savings_rounded,
+                    title: I18n.t(context, 'monthly_budget'),
+                    subtitle: provider.monthlyBudget > 0
+                        ? formatRupiah(provider.monthlyBudget)
+                        : I18n.t(context, 'no_budget_set'),
+                    onTap: () => _showBudgetDialog(context, provider),
                   ),
                   const SizedBox(height: 12),
                   _SettingsItem(

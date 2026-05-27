@@ -317,18 +317,49 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
               ),
             ),
             const SizedBox(height: NaraSpacing.xl),
-            Text(I18n.t(context, 'reminder_title'), style: NaraTextStyles.h3),
+            Text(
+              '${I18n.t(context, 'reminder_title')} *',
+              style: NaraTextStyles.h3,
+            ),
             const SizedBox(height: NaraSpacing.sm),
             TextField(
               controller: _titleController,
               style: NaraTextStyles.body,
               decoration: InputDecoration(
                 hintText: I18n.t(context, 'reminder_title_hint'),
+                hintStyle: NaraTextStyles.body.copyWith(
+                  color: NaraColors.textSecondary,
+                ),
+                helperText: Localizations.localeOf(context).languageCode == 'en'
+                    ? 'Required field'
+                    : 'Wajib diisi',
+                helperStyle: NaraTextStyles.bodySmall.copyWith(
+                  color: NaraColors.textSecondary,
+                ),
                 filled: true,
                 fillColor: NaraColors.surfaceCard,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: NaraSpacing.md,
+                  vertical: NaraSpacing.md,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(
+                    color: NaraColors.textHint.withValues(alpha: 0.45),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: NaraColors.textHint.withValues(alpha: 0.45),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: const BorderSide(
+                    color: NaraColors.primary,
+                    width: 1.6,
+                  ),
                 ),
               ),
             ),

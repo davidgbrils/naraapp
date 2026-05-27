@@ -180,8 +180,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       _expenseCustomDate,
     );
     final totalExpense = filteredExpenses.fold<num>(0, (sum, item) => sum + ((item['amount'] as num?) ?? 0));
-    const budget = 5000000;
-    final progress = totalExpense / budget;
+    final budget = provider.monthlyBudget;
+    final progress = budget > 0 ? (totalExpense / budget) : 0.0;
 
     final expenseCategoryTotals = _buildCategoryTotals(filteredExpenses, tr);
     final sortedExpenseCategories = _sortCategoryTotals(expenseCategoryTotals);
@@ -253,34 +253,79 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 const SizedBox(height: 8),
                 Text(formatRupiah(totalExpense), style: displayStyle),
                 const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
+                if (budget > 0) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${I18n.t(context, 'monthly_budget')}: ${formatRupiah(budget)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${tr('Terpakai', 'Used')} ${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%',
+                        style: NaraTextStyles.label.copyWith(color: NaraColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0, 1),
+                      minHeight: 8,
+                      backgroundColor: NaraColors.textHint.withValues(alpha: 0.3),
+                      valueColor: const AlwaysStoppedAnimation<Color>(NaraColors.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    tr('Dihitung dari total pengeluaran pada periode aktif.', 'Calculated from total expenses in current period.'),
+                    style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => _showBudgetDialog(context, provider),
                       child: Text(
-                        '${tr('Anggaran', 'Budget')}: ${formatRupiah(budget)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary, fontSize: 12),
+                        I18n.t(context, 'edit_budget'),
+                        style: NaraTextStyles.label.copyWith(color: NaraColors.primary),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${(progress.clamp(0, 1) * 100).toStringAsFixed(0)}%',
-                      style: NaraTextStyles.label.copyWith(color: NaraColors.primary, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0, 1),
-                    minHeight: 8,
-                    backgroundColor: NaraColors.textHint.withValues(alpha: 0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(NaraColors.primary),
                   ),
-                ),
+                ] else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: NaraColors.surfaceCard,
+                      borderRadius: BorderRadius.circular(NaraRadius.md),
+                      border: Border.all(color: NaraColors.textHint.withValues(alpha: 0.25)),
+                    ),
+                    child: Text(
+                      I18n.t(context, 'no_budget_set'),
+                      style: NaraTextStyles.bodySmall.copyWith(
+                        color: NaraColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                if (budget <= 0)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => _showBudgetDialog(context, provider),
+                      child: Text(
+                        I18n.t(context, 'set_budget'),
+                        style: NaraTextStyles.label.copyWith(color: NaraColors.primary),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -654,88 +699,111 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               ],
             ),
           const SizedBox(height: 20),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          NaraCard(
+            padding: const EdgeInsets.all(12),
+            borderRadius: NaraRadius.lg,
+            backgroundColor: NaraColors.surfaceWhite,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _FilterChip(
-                  label: tr('Semua', 'All'),
-                  isSelected: _debtTypeFilter == _DebtTypeFilter.all,
-                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.all),
+                Text(
+                  tr('Tipe', 'Type'),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: tr('Saya Berhutang', 'My Debts'),
-                  isSelected: _debtTypeFilter == _DebtTypeFilter.debt,
-                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.debt),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _FilterChip(
+                      label: tr('Semua', 'All'),
+                      isSelected: _debtTypeFilter == _DebtTypeFilter.all,
+                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.all),
+                    ),
+                    _FilterChip(
+                      label: tr('Saya Berhutang', 'My Debts'),
+                      isSelected: _debtTypeFilter == _DebtTypeFilter.debt,
+                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.debt),
+                    ),
+                    _FilterChip(
+                      label: tr('Piutang Saya', 'My Receivables'),
+                      isSelected: _debtTypeFilter == _DebtTypeFilter.receivable,
+                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.receivable),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: tr('Piutang Saya', 'My Receivables'),
-                  isSelected: _debtTypeFilter == _DebtTypeFilter.receivable,
-                  onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.receivable),
+                const SizedBox(height: 12),
+                Text(
+                  tr('Status', 'Status'),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-            children: [
-              _FilterChip(
-                label: '${tr('Semua', 'All')} ($statusAllCount)',
-                isSelected: _debtFilter == _DebtFilter.all,
-                onTap: () => setState(() => _debtFilter = _DebtFilter.all),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: '${tr('Belum Lunas', 'Unpaid')} ($statusUnpaidCount)',
-                isSelected: _debtFilter == _DebtFilter.unpaid,
-                onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: '${tr('Lunas', 'Paid')} ($statusPaidCount)',
-                isSelected: _debtFilter == _DebtFilter.paid,
-                onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: '${tr('Overdue', 'Overdue')} ($statusOverdueCount)',
-                isSelected: _debtFilter == _DebtFilter.overdue,
-                onTap: () => setState(() => _debtFilter = _DebtFilter.overdue),
-              ),
-            ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: tr('Semua', 'All'),
-                  isSelected: _debtDueFilter == _DebtDueFilter.all,
-                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.all),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _FilterChip(
+                      label: '${tr('Semua', 'All')} ($statusAllCount)',
+                      isSelected: _debtFilter == _DebtFilter.all,
+                      onTap: () => setState(() => _debtFilter = _DebtFilter.all),
+                    ),
+                    _FilterChip(
+                      label: '${tr('Belum Lunas', 'Unpaid')} ($statusUnpaidCount)',
+                      isSelected: _debtFilter == _DebtFilter.unpaid,
+                      onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
+                    ),
+                    _FilterChip(
+                      label: '${tr('Lunas', 'Paid')} ($statusPaidCount)',
+                      isSelected: _debtFilter == _DebtFilter.paid,
+                      onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
+                    ),
+                    _FilterChip(
+                      label: '${tr('Overdue', 'Overdue')} ($statusOverdueCount)',
+                      isSelected: _debtFilter == _DebtFilter.overdue,
+                      onTap: () => setState(() => _debtFilter = _DebtFilter.overdue),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: tr('Hari ini', 'Today'),
-                  isSelected: _debtDueFilter == _DebtDueFilter.today,
-                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.today),
+                const SizedBox(height: 12),
+                Text(
+                  tr('Jatuh Tempo', 'Due Date'),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: tr('7 hari', '7 days'),
-                  isSelected: _debtDueFilter == _DebtDueFilter.next7Days,
-                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.next7Days),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: tr('Overdue', 'Overdue'),
-                  isSelected: _debtDueFilter == _DebtDueFilter.overdue,
-                  onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.overdue),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _FilterChip(
+                      label: tr('Semua', 'All'),
+                      isSelected: _debtDueFilter == _DebtDueFilter.all,
+                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.all),
+                    ),
+                    _FilterChip(
+                      label: tr('Hari ini', 'Today'),
+                      isSelected: _debtDueFilter == _DebtDueFilter.today,
+                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.today),
+                    ),
+                    _FilterChip(
+                      label: tr('7 hari', '7 days'),
+                      isSelected: _debtDueFilter == _DebtDueFilter.next7Days,
+                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.next7Days),
+                    ),
+                    _FilterChip(
+                      label: tr('Overdue', 'Overdue'),
+                      isSelected: _debtDueFilter == _DebtDueFilter.overdue,
+                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.overdue),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -874,6 +942,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       ),
                     ),
                     const SizedBox(height: 20),
+                    _ActionButton(
+                      label: tr('Edit Data', 'Edit Data'),
+                      onTap: () => _showEditDebtDialog(
+                        context: context,
+                        provider: provider,
+                        index: originalIndex,
+                      ),
+                      color: NaraColors.surfaceCard,
+                      textColor: NaraColors.primary,
+                      borderColor: NaraColors.primary.withValues(alpha: 0.35),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1105,6 +1185,62 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     onSelected(DateUtils.dateOnly(selectedDate));
   }
 
+  Future<void> _showBudgetDialog(BuildContext context, AppProvider provider) async {
+    final controller = TextEditingController(
+      text: provider.monthlyBudget > 0 ? provider.monthlyBudget.toString() : '',
+    );
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(I18n.t(context, 'monthly_budget'), style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              I18n.t(context, 'monthly_budget_hint'),
+              style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: InputDecoration(
+                prefixText: 'Rp ',
+                hintText: I18n.t(context, 'budget_input_hint'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(I18n.t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final value = parseRupiahInput(controller.text);
+              await provider.setMonthlyBudget(value);
+              if (!context.mounted) return;
+              showAppSnackBar(
+                context,
+                content: Text(
+                  value > 0
+                      ? I18n.t(context, 'budget_saved')
+                      : (isEnglish ? 'Monthly budget cleared' : 'Anggaran bulanan dihapus'),
+                ),
+              );
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: Text(I18n.t(context, 'save')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showEditExpenseDialog({
     required BuildContext context,
     required AppProvider provider,
@@ -1251,6 +1387,167 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       ..['amount'] = amount;
     provider.updateIncomeAt(index, updatedIncome);
     showAppSnackBar(context, content: Text(isEnglish ? 'Income updated.' : 'Pemasukan diperbarui.'));
+  }
+
+  Future<void> _showEditDebtDialog({
+    required BuildContext context,
+    required AppProvider provider,
+    required int index,
+  }) async {
+    if (index < 0 || index >= provider.debts.length) return;
+    final debt = provider.debts[index];
+    final isEnglish = provider.language == 'English';
+
+    final titleController = TextEditingController(text: (debt['title'] as String?) ?? '');
+    final amountController = TextEditingController(
+      text: _formatCurrency(((debt['amount'] as num?)?.toInt() ?? 0)),
+    );
+    final noteController = TextEditingController(text: (debt['note'] as String?) ?? '');
+    final typeNotifier = ValueNotifier<String>((debt['type'] as String?) == 'piutang' ? 'piutang' : 'utang');
+    DateTime? dueDate = _parseDebtDueDate((debt['dueDate'] as String?) ?? '');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          backgroundColor: NaraColors.surfaceWhite,
+          title: Text(isEnglish ? 'Edit Debt / Receivable' : 'Edit Utang / Piutang', style: NaraTextStyles.h3),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ValueListenableBuilder<String>(
+                  valueListenable: typeNotifier,
+                  builder: (context, debtType, _) => DropdownButtonFormField<String>(
+                    initialValue: debtType,
+                    items: [
+                      DropdownMenuItem(value: 'utang', child: Text(isEnglish ? 'My Debt' : 'Saya Berhutang')),
+                      DropdownMenuItem(value: 'piutang', child: Text(isEnglish ? 'My Receivable' : 'Piutang Saya')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      typeNotifier.value = value;
+                    },
+                    decoration: InputDecoration(labelText: isEnglish ? 'Type' : 'Jenis'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(labelText: isEnglish ? 'Name' : 'Nama'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [RupiahInputFormatter()],
+                  decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  decoration: InputDecoration(labelText: isEnglish ? 'Note' : 'Catatan'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: dialogContext,
+                            initialDate: dueDate ?? now,
+                            firstDate: DateTime(now.year - 2),
+                            lastDate: DateTime(now.year + 20),
+                          );
+                          if (picked == null) return;
+                          setLocalState(() => dueDate = DateUtils.dateOnly(picked));
+                        },
+                        icon: const Icon(Icons.event_rounded, size: 16),
+                        label: Text(
+                          dueDate == null
+                              ? (isEnglish ? 'Set due date' : 'Atur jatuh tempo')
+                              : _formatDateLabel(context, dueDate!),
+                        ),
+                      ),
+                    ),
+                    if (dueDate != null) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: isEnglish ? 'Clear due date' : 'Hapus jatuh tempo',
+                        onPressed: () => setLocalState(() => dueDate = null),
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(I18n.t(context, 'cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(I18n.t(context, 'save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!context.mounted) {
+      titleController.dispose();
+      amountController.dispose();
+      noteController.dispose();
+      typeNotifier.dispose();
+      return;
+    }
+    if (ok != true) {
+      titleController.dispose();
+      amountController.dispose();
+      noteController.dispose();
+      typeNotifier.dispose();
+      return;
+    }
+
+    final title = titleController.text.trim();
+    final amount = parseRupiahInput(amountController.text);
+    final note = noteController.text.trim();
+    final debtType = typeNotifier.value;
+    titleController.dispose();
+    amountController.dispose();
+    noteController.dispose();
+    typeNotifier.dispose();
+
+    if (title.isEmpty || amount <= 0) {
+      showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
+      return;
+    }
+
+    final updatedDebt = Map<String, dynamic>.from(debt)
+      ..['title'] = title
+      ..['amount'] = amount
+      ..['type'] = debtType
+      ..['note'] = note
+      ..['dueDate'] = dueDate == null
+          ? ''
+          : '${dueDate!.day.toString().padLeft(2, '0')} ${_monthShortId(dueDate!.month)} ${dueDate!.year}';
+
+    provider.updateDebtAt(index, updatedDebt);
+    showAppSnackBar(
+      context,
+      content: Text(isEnglish ? 'Debt/receivable updated.' : 'Utang/piutang diperbarui.'),
+    );
+  }
+
+  String _monthShortId(int month) {
+    const months = <String>['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    if (month < 1 || month > 12) return 'Jan';
+    return months[month - 1];
   }
 
   void _showPartialPaymentDialog({
@@ -1482,23 +1779,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             ElevatedButton(
               onPressed: () {
                 HapticFeedback.heavyImpact();
-                provider.updateDebtPayment(debtIndex, paymentAmount);
-                Navigator.pop(confirmContext);
-                Navigator.pop(dialogContext);
-                showAppSnackBar(
-                  context,
-                  backgroundColor: NaraColors.primary,
-                  content: Semantics(
-                    label: tr('Pembayaran berhasil', 'Payment successful'),
-                    child: Text(
-                      tr(
-                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
-                        'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
+                Navigator.of(confirmContext).pop();
+                if (Navigator.of(dialogContext).canPop()) {
+                  Navigator.of(dialogContext).pop();
+                }
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  provider.updateDebtPayment(debtIndex, paymentAmount);
+                  showAppSnackBar(
+                    context,
+                    backgroundColor: NaraColors.primary,
+                    content: Semantics(
+                      label: tr('Pembayaran berhasil', 'Payment successful'),
+                      child: Text(
+                        tr(
+                          'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                          'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
+                        ),
+                        style: NaraTextStyles.body,
                       ),
-                      style: NaraTextStyles.body,
                     ),
-                  ),
-                );
+                  );
+                });
               },
               child: Semantics(
                 button: true,

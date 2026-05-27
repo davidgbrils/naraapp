@@ -9,6 +9,7 @@ import '../../core/theme/nara_spacing.dart';
 import '../../core/theme/nara_text_styles.dart';
 import '../../components/index.dart';
 import '../../providers/app_provider.dart';
+import 'notification_feed_ids.dart';
 
 enum _NotificationFilter { all, reminder, debt, transaction }
 
@@ -116,7 +117,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
           final allItems = <_NotificationItem>[
             if (provider.reminderNotificationsEnabled) ...dueReminders.asMap().entries.map((entry) {
-              final itemIndex = entry.key;
               final r = entry.value;
               final scheduledAt = DateTime.tryParse(r['scheduledAt'] as String? ?? '');
               final subtitle = scheduledAt == null
@@ -127,8 +127,15 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   : _formatReminderSubtitle(context, scheduledAt);
               final title = r['title'] as String? ?? 'Reminder';
               final detail = r['note'] as String? ?? r['type'] as String? ?? '-';
-              final id = 'reminder:${r['notificationId'] ?? itemIndex}:$title:$subtitle:$detail';
               final reminderIndex = provider.reminders.indexOf(r);
+              final scheduleKey =
+                  (r['scheduledAt'] as String?) ?? (r['date'] as String? ?? '');
+              final id = NotificationFeedIds.reminderId(
+                notificationId: r['notificationId'] as int? ?? reminderIndex,
+                title: title,
+                scheduleKey: scheduleKey,
+                note: detail,
+              );
               return _NotificationItem(
                 id: id,
                 type: _NotificationFilter.reminder,
@@ -173,7 +180,11 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   ? (isEnglish ? 'Paid' : 'Lunas')
                   : (isEnglish ? 'Unpaid' : 'Belum lunas');
               final detail = 'Status: $statusLabel\n$scheduleInfo';
-              final id = 'debt:${debt['debtId'] ?? itemIndex}:$status:$dueDate';
+              final id = NotificationFeedIds.debtId(
+                debtId: debt['debtId'] as int? ?? itemIndex,
+                status: status,
+                dueDate: dueDate,
+              );
               return _NotificationItem(
                 id: id,
                 type: _NotificationFilter.debt,
@@ -196,7 +207,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 e['time'] as String? ?? I18n.t(context, 'just_now'),
               );
               final detail = '${I18n.t(context, 'expense')} ${formatRupiah((e['amount'] as num?) ?? 0)}';
-              final id = 'expense:${e['createdAt'] ?? title}:$detail:$itemIndex';
+              final id = NotificationFeedIds.expenseId(
+                createdAt: e['createdAt'] ?? itemIndex,
+                title: title,
+              );
               return _NotificationItem(
                 id: id,
                 type: _NotificationFilter.transaction,
@@ -217,7 +231,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 i['time'] as String? ?? I18n.t(context, 'just_now'),
               );
               final detail = '${I18n.t(context, 'income')} ${formatRupiah((i['amount'] as num?) ?? 0)}';
-              final id = 'income:${i['createdAt'] ?? title}:$detail:$itemIndex';
+              final id = NotificationFeedIds.incomeId(
+                createdAt: i['createdAt'] ?? itemIndex,
+                title: title,
+              );
               return _NotificationItem(
                 id: id,
                 type: _NotificationFilter.transaction,

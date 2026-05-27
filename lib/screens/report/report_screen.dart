@@ -1159,10 +1159,11 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 const SizedBox(height: NaraSpacing.md),
                 _SummaryCard(
-                  title: I18n.t(context, 'balance'),
+                  title: I18n.t(context, 'net_balance'),
                   amount: formatRupiah(balance),
                   color: balance < 0 ? NaraColors.danger : NaraColors.success,
                   icon: Icons.account_balance_wallet_rounded,
+                  subtitle: I18n.t(context, 'balance_formula_hint'),
                   fullWidth: true,
                 ),
                 const SizedBox(height: NaraSpacing.md),
@@ -1330,6 +1331,7 @@ class _SummaryCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final bool fullWidth;
+  final String? subtitle;
 
   const _SummaryCard({
     required this.title,
@@ -1337,6 +1339,7 @@ class _SummaryCard extends StatelessWidget {
     required this.color,
     required this.icon,
     this.fullWidth = false,
+    this.subtitle,
   });
 
   @override
@@ -1375,6 +1378,17 @@ class _SummaryCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),

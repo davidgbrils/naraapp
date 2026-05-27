@@ -66,6 +66,7 @@ class AppProvider extends ChangeNotifier {
   static const String _reminderNotifsEnabledKey = 'notif_reminder_enabled';
   static const String _debtNotifsEnabledKey = 'notif_debt_enabled';
   static const String _transactionNotifsEnabledKey = 'notif_transaction_enabled';
+  static const String _monthlyBudgetKey = 'monthly_budget';
 
   bool _isDarkMode = false;
   bool _notificationsEnabled = true;
@@ -78,6 +79,7 @@ class AppProvider extends ChangeNotifier {
   bool _reminderNotificationsEnabled = true;
   bool _debtNotificationsEnabled = true;
   bool _transactionNotificationsEnabled = true;
+  int _monthlyBudget = 0;
   int _notificationFeedVersion = 0;
   
   bool get isOnboardingComplete => _isOnboardingComplete;
@@ -95,6 +97,7 @@ class AppProvider extends ChangeNotifier {
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
   bool get debtNotificationsEnabled => _debtNotificationsEnabled;
   bool get transactionNotificationsEnabled => _transactionNotificationsEnabled;
+  int get monthlyBudget => _monthlyBudget;
   int get notificationFeedVersion => _notificationFeedVersion;
   
   Future<void> completeOnboarding() async {
@@ -224,6 +227,13 @@ class AppProvider extends ChangeNotifier {
     _notificationFeedVersion++;
     notifyListeners();
   }
+
+  Future<void> setMonthlyBudget(int value) async {
+    _monthlyBudget = value < 0 ? 0 : value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_monthlyBudgetKey, _monthlyBudget);
+    notifyListeners();
+  }
   
   // Voice state
   bool _isListening = false;
@@ -231,6 +241,8 @@ class AppProvider extends ChangeNotifier {
   String _lastIntent = '';
   String _voiceErrorMessage = '';
   Map<String, dynamic>? _pendingVoiceAction;
+  Map<String, dynamic>? _voiceDraftAction;
+  String? _voiceAwaitingField;
   Map<String, dynamic>? _activeAlert;
   int _alertCountdown = 0;
   
@@ -264,9 +276,13 @@ class AppProvider extends ChangeNotifier {
       localeId: localeId,
       onStatus: (status) {
         if (status == 'notListening' || status == 'done') {
-          _isListening = false;
-          _isProcessing = false;
-          notifyListeners();
+          Future.delayed(const Duration(milliseconds: 900), () {
+            if (_isProcessing) return;
+            if (_pendingVoiceAction != null) return;
+            _isListening = false;
+            _isProcessing = false;
+            notifyListeners();
+          });
         }
       },
       onError: (error) {
@@ -285,13 +301,55 @@ class AppProvider extends ChangeNotifier {
         if (!isFinal) return;
         _isListening = false;
         _isProcessing = false;
-        _pendingVoiceAction = _buildPendingVoiceAction(text);
+        Map<String, dynamic>? candidate;
+        if (_voiceAwaitingField != null && _voiceDraftAction != null) {
+          candidate = _applyFollowUpAnswer(
+            draft: _voiceDraftAction!,
+            field: _voiceAwaitingField!,
+            answer: text,
+          );
+        } else {
+          candidate = _buildPendingVoiceAction(text);
+        }
+        final missingField = candidate == null ? null : _nextMissingField(candidate);
+        if (candidate != null && missingField != null) {
+          _voiceDraftAction = candidate;
+          _voiceAwaitingField = missingField;
+          _pendingVoiceAction = null;
+          final prompt = _friendlyPromptForField(missingField, isEnglish);
+          _voiceErrorMessage = prompt;
+          notifyListeners();
+          await _voiceService.speak(
+            prompt,
+            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+          );
+          await Future.delayed(const Duration(milliseconds: 220));
+          await startListening();
+          return;
+        }
+
+        _voiceDraftAction = null;
+        _voiceAwaitingField = null;
+        _pendingVoiceAction = candidate;
+        final validation = _pendingVoiceAction == null
+            ? {'isValid': false, 'message': ''}
+            : validateVoiceAction(_pendingVoiceAction!);
         notifyListeners();
-        if (_pendingVoiceAction != null) {
+        if (_pendingVoiceAction != null && validation['isValid'] == true) {
           await _voiceService.speak(
             isEnglish
                 ? 'Command detected. Please confirm action on screen.'
                 : 'Perintah terdeteksi. Silakan konfirmasi aksi di layar.',
+            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+          );
+        } else if (_pendingVoiceAction != null) {
+          final msg = (validation['message'] as String?)?.trim();
+          await _voiceService.speak(
+            msg?.isNotEmpty == true
+                ? msg!
+                : (isEnglish
+                    ? 'Please complete missing information.'
+                    : 'Lengkapi informasi yang kurang ya.'),
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
         } else {
@@ -340,6 +398,16 @@ class AppProvider extends ChangeNotifier {
 
   void clearPendingVoiceAction() {
     _pendingVoiceAction = null;
+    _voiceDraftAction = null;
+    _voiceAwaitingField = null;
+    notifyListeners();
+  }
+
+  void replacePendingVoiceAction(Map<String, dynamic> action) {
+    _pendingVoiceAction = Map<String, dynamic>.from(action);
+    _voiceDraftAction = null;
+    _voiceAwaitingField = null;
+    _voiceErrorMessage = '';
     notifyListeners();
   }
 
@@ -477,22 +545,22 @@ class AppProvider extends ChangeNotifier {
 
     if (type == 'reminder') {
       final title = (action['title'] as String?)?.trim() ?? '';
-      final mode = (action['mode'] as String?) ?? 'Notification';
+      final mode = (action['mode'] as String?) ?? '';
       final scheduledAt = action['scheduledAt'] as DateTime?;
-      if (title.isEmpty) {
+      if (title.isEmpty || title.toLowerCase() == 'reminder') {
         return {
           'isValid': false,
           'message': isEnglish
-              ? 'Reminder title cannot be empty.'
-              : 'Judul reminder tidak boleh kosong.',
+              ? 'Please mention reminder title. Example: remind me to pay electricity.'
+              : 'Sebutkan judul reminder dulu. Contoh: ingatkan bayar listrik.',
         };
       }
       if (scheduledAt == null) {
         return {
           'isValid': false,
           'message': isEnglish
-              ? 'Reminder time is not valid.'
-              : 'Waktu reminder tidak valid.',
+              ? 'Please mention reminder time. Example: tomorrow 8 PM or in 10 minutes.'
+              : 'Sebutkan waktu reminder. Contoh: besok jam 8 malam atau 10 menit lagi.',
         };
       }
       if (!scheduledAt.isAfter(current.subtract(const Duration(seconds: 1)))) {
@@ -654,13 +722,14 @@ class AppProvider extends ChangeNotifier {
         text.contains('ingat ');
 
     if (isReminder) {
-      final mode = _detectReminderMode(text);
+      final mode = _detectReminderModeOrNull(text);
+      final scheduledAt = _hasReminderTimeCue(text) ? _extractReminderDateTime(text) : null;
       return {
         'type': 'reminder',
         'title': _extractReminderTitle(text),
         'note': '',
         'mode': mode,
-        'scheduledAt': _extractReminderDateTime(text),
+        'scheduledAt': scheduledAt,
       };
     }
     if (isDebtPayment) {
@@ -863,16 +932,27 @@ class AppProvider extends ChangeNotifier {
 
   String _extractReminderTitle(String text) {
     final cleaned = text
+        .replaceAll('buatkan', '')
+        .replaceAll('buat', '')
+        .replaceAll('setel', '')
+        .replaceAll('set', '')
+        .replaceAll('tolong', '')
+        .replaceAll('please', '')
+        .replaceAll('saya', '')
         .replaceAll('ingatkan', '')
         .replaceAll('reminder', '')
         .replaceAll('ingat', '')
+        .replaceAll('mode', '')
         .replaceAll('alarm', '')
         .replaceAll('notifikasi', '')
         .replaceAll('fake call', '')
+        .replaceAll(RegExp(r'\d+\s*(menit|minute|jam|hour)\s+lagi'), '')
+        .replaceAll(RegExp(r'(dalam|in)\s+\d+\s*(menit|minute|jam|hour)'), '')
         .replaceAll(RegExp(r'(jam|pukul)\s+\d{1,2}([:.]\d{1,2})?'), '')
         .replaceAll('hari ini', '')
         .replaceAll('besok', '')
         .replaceAll('lusa', '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (cleaned.isEmpty) return 'Reminder';
     return cleaned
@@ -883,6 +963,17 @@ class AppProvider extends ChangeNotifier {
 
   DateTime _extractReminderDateTime(String text) {
     final now = DateTime.now();
+    final relativeMinute = RegExp(r'(\d{1,3})\s*(menit|minute)\s+lagi').firstMatch(text);
+    if (relativeMinute != null) {
+      final minutes = int.tryParse(relativeMinute.group(1) ?? '') ?? 1;
+      return now.add(Duration(minutes: minutes.clamp(1, 180)));
+    }
+    final relativeHour = RegExp(r'(\d{1,2})\s*(jam|hour)\s+lagi').firstMatch(text);
+    if (relativeHour != null) {
+      final hours = int.tryParse(relativeHour.group(1) ?? '') ?? 1;
+      return now.add(Duration(hours: hours.clamp(1, 24)));
+    }
+
     final match = RegExp(r'(jam|pukul)\s+(\d{1,2})([:.](\d{1,2}))?').firstMatch(text);
     int hour = now.hour;
     int minute = (now.minute + 1) % 60;
@@ -932,14 +1023,182 @@ class AppProvider extends ChangeNotifier {
     return target;
   }
 
-  String _detectReminderMode(String text) {
+  String? _detectReminderModeOrNull(String text) {
     if (text.contains('fake call') || text.contains('telepon palsu')) {
       return 'Fake Call';
     }
     if (text.contains('alarm') || text.contains('keras')) {
       return 'Loud Alarm';
     }
-    return 'Notification';
+    if (text.contains('notifikasi') || text.contains('notification')) {
+      return 'Notification';
+    }
+    return null;
+  }
+
+  bool _hasReminderTimeCue(String text) {
+    return RegExp(r'(jam|pukul)\s+\d{1,2}([:.]\d{1,2})?').hasMatch(text) ||
+        RegExp(r'\d{1,3}\s*(menit|minute|jam|hour)\s+lagi').hasMatch(text) ||
+        _containsAny(text, const [
+          'hari ini',
+          'besok',
+          'lusa',
+          'monday',
+          'tuesday',
+          'wednesday',
+          'thursday',
+          'friday',
+          'saturday',
+          'sunday',
+          'senin',
+          'selasa',
+          'rabu',
+          'kamis',
+          'jumat',
+          'sabtu',
+          'minggu',
+        ]);
+  }
+
+  String? _nextMissingField(Map<String, dynamic> action) {
+    final type = action['type'] as String? ?? '';
+    if (type == 'reminder') {
+      final title = (action['title'] as String?)?.trim() ?? '';
+      final scheduledAt = action['scheduledAt'] as DateTime?;
+      final mode = (action['mode'] as String?) ?? '';
+      if (title.isEmpty || title.toLowerCase() == 'reminder') return 'reminder_title';
+      if (scheduledAt == null) return 'reminder_time';
+      if (mode.isEmpty) return 'reminder_mode';
+      return null;
+    }
+    if (type == 'expense' || type == 'income') {
+      final title = (action['title'] as String?)?.trim() ?? '';
+      final amount = (action['amount'] as int?) ?? 0;
+      if (title.isEmpty) return '${type}_title';
+      if (amount <= 0) return '${type}_amount';
+      return null;
+    }
+    if (type == 'debt') {
+      final title = (action['title'] as String?)?.trim() ?? '';
+      final amount = (action['amount'] as int?) ?? 0;
+      final debtType = (action['debtType'] as String?) ?? '';
+      if (title.isEmpty || title == '-') return 'debt_title';
+      if (amount <= 0) return 'debt_amount';
+      if (debtType != 'utang' && debtType != 'piutang') return 'debt_type';
+      return null;
+    }
+    if (type == 'debt_payment') {
+      final debtId = action['debtId'] as int?;
+      final amount = (action['amount'] as int?) ?? 0;
+      if (debtId == null || _indexOfDebtId(debtId) == -1) return 'debt_payment_target';
+      if (amount <= 0) return 'debt_payment_amount';
+      return null;
+    }
+    return null;
+  }
+
+  String _friendlyPromptForField(String field, bool isEnglish) {
+    switch (field) {
+      case 'reminder_title':
+        return isEnglish
+            ? 'Sure. What should I remind you about? For example: pay electricity bill.'
+            : 'Siap. Mau diingatkan tentang apa? Contohnya: bayar listrik.';
+      case 'reminder_time':
+        return isEnglish
+            ? 'Nice. When should I remind you? You can say tomorrow at 8 PM, or in 10 minutes.'
+            : 'Oke. Ingatkannya kapan? Kamu bisa bilang besok jam 8 malam, atau 10 menit lagi.';
+      case 'reminder_mode':
+        return isEnglish
+            ? 'Which reminder type do you prefer: Notification, Loud Alarm, or Fake Call?'
+            : 'Untuk jenis pengingatnya mau yang mana: Notifikasi, Alarm Keras, atau Fake Call?';
+      case 'expense_title':
+        return isEnglish
+            ? 'What is this expense for?'
+            : 'Pengeluarannya untuk apa ya?';
+      case 'expense_amount':
+        return isEnglish
+            ? 'How much is the expense amount?'
+            : 'Nominal pengeluarannya berapa?';
+      case 'income_title':
+        return isEnglish
+            ? 'What is the income source?'
+            : 'Sumber pemasukannya dari mana?';
+      case 'income_amount':
+        return isEnglish
+            ? 'How much is the income amount?'
+            : 'Nominal pemasukannya berapa?';
+      case 'debt_title':
+        return isEnglish
+            ? 'Who is this debt or receivable with?'
+            : 'Ini utang atau piutang dengan siapa ya?';
+      case 'debt_amount':
+        return isEnglish
+            ? 'How much is the debt or receivable amount?'
+            : 'Nominal utang atau piutangnya berapa?';
+      case 'debt_type':
+        return isEnglish
+            ? 'Is this your debt, or your receivable?'
+            : 'Ini termasuk utang kamu, atau piutang kamu?';
+      case 'debt_payment_target':
+        return isEnglish
+            ? 'Which debt do you want to pay first? Please mention the name.'
+            : 'Mau bayar utang yang mana dulu? Sebutkan namanya ya.';
+      case 'debt_payment_amount':
+        return isEnglish
+            ? 'How much do you want to pay?'
+            : 'Mau bayar berapa dulu?';
+      default:
+        return isEnglish
+            ? 'Please complete the missing information.'
+            : 'Lengkapi informasi yang masih kurang ya.';
+    }
+  }
+
+  Map<String, dynamic> _applyFollowUpAnswer({
+    required Map<String, dynamic> draft,
+    required String field,
+    required String answer,
+  }) {
+    final next = Map<String, dynamic>.from(draft);
+    final text = answer.toLowerCase().trim();
+    switch (field) {
+      case 'reminder_title':
+        next['title'] = _extractReminderTitle(text);
+        break;
+      case 'reminder_time':
+        next['scheduledAt'] = _extractReminderDateTime(text);
+        break;
+      case 'reminder_mode':
+        next['mode'] = _detectReminderModeOrNull(text);
+        break;
+      case 'expense_title':
+      case 'income_title':
+        next['title'] = _extractVoiceTitle(
+          text,
+          fallback: field.startsWith('expense') ? 'Pengeluaran' : 'Pemasukan',
+        );
+        break;
+      case 'expense_amount':
+      case 'income_amount':
+        next['amount'] = _parseVoiceAmount(text);
+        break;
+      case 'debt_title':
+        next['title'] = _extractDebtPerson(text);
+        break;
+      case 'debt_amount':
+        next['amount'] = _parseVoiceAmount(text);
+        break;
+      case 'debt_type':
+        next['debtType'] = _detectDebtType(text);
+        break;
+      case 'debt_payment_target':
+        next['debtId'] = _findDebtIdFromText(text);
+        break;
+      case 'debt_payment_amount':
+        next['amount'] = _parseVoiceAmount(text);
+        break;
+    }
+    return next;
   }
 
   String _detectExpenseCategory(String text) {
@@ -1144,6 +1403,26 @@ class AppProvider extends ChangeNotifier {
     debt['status'] = debt['status'] ?? 'berjalan';
     _ensureDebtId(debt);
     _debts.insert(0, debt);
+    _saveDebts();
+    notifyListeners();
+  }
+
+  void updateDebtAt(int index, Map<String, dynamic> updatedDebt) {
+    if (index < 0 || index >= _debts.length) return;
+
+    final current = _debts[index];
+    final totalAmount = ((updatedDebt['amount'] as num?)?.toInt() ?? 0).clamp(0, 1 << 30);
+    final currentPaid = (current['paidAmount'] as num?)?.toInt() ?? 0;
+    final nextPaid = currentPaid.clamp(0, totalAmount);
+
+    updatedDebt['createdAt'] = current['createdAt'] ?? DateTime.now();
+    updatedDebt['updatedAt'] = DateTime.now();
+    updatedDebt['debtId'] = current['debtId'] ?? updatedDebt['debtId'];
+    updatedDebt['paidAmount'] = nextPaid;
+    updatedDebt['status'] = nextPaid >= totalAmount ? 'lunas' : 'berjalan';
+    updatedDebt['paymentHistory'] = current['paymentHistory'] ?? updatedDebt['paymentHistory'] ?? <Map<String, dynamic>>[];
+
+    _debts[index] = updatedDebt;
     _saveDebts();
     notifyListeners();
   }
@@ -2109,6 +2388,7 @@ class AppProvider extends ChangeNotifier {
       _reminderNotificationsEnabled = prefs.getBool(_reminderNotifsEnabledKey) ?? true;
       _debtNotificationsEnabled = prefs.getBool(_debtNotifsEnabledKey) ?? true;
       _transactionNotificationsEnabled = prefs.getBool(_transactionNotifsEnabledKey) ?? true;
+      _monthlyBudget = prefs.getInt(_monthlyBudgetKey) ?? 0;
       await _loadJsonList(_expensesKey, _expenses);
       await _loadJsonList(_incomesKey, _incomes);
       await _loadJsonList(_debtsKey, _debts);

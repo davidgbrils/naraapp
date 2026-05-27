@@ -1127,10 +1127,11 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
       return;
     }
     if (_isVoiceDisabledSnackVisible) return;
+    const cooldown = Duration(seconds: 8);
+    const snackDuration = Duration(seconds: 3);
     final now = DateTime.now();
     final lastShownAt = _lastVoiceDisabledSnackAt;
-    if (lastShownAt != null &&
-        now.difference(lastShownAt) < const Duration(seconds: 3)) {
+    if (lastShownAt != null && now.difference(lastShownAt) < cooldown) {
       return;
     }
     _lastVoiceDisabledSnackAt = now;
@@ -1140,15 +1141,9 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
       content: Text(
         I18n.t(context, 'voice_beta_disabled_settings'),
       ),
-      duration: const Duration(seconds: 2),
-      action: SnackBarAction(
-        label: I18n.t(context, 'open_short'),
-        onPressed: () {
-          Navigator.pushNamed(context, '/settings');
-        },
-      ),
+      duration: snackDuration,
     );
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(snackDuration, () {
       if (!mounted) return;
       _isVoiceDisabledSnackVisible = false;
     });
@@ -1370,17 +1365,21 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           }
 
           final isEnglish = Localizations.localeOf(context).languageCode == 'en';
-          final summary = _voiceActionSummary(action, isEnglish);
-          bool approved = true;
-          if (provider.voiceConfirmEnabled) {
-            final decision = await showDialog<bool>(
+          var workingAction = Map<String, dynamic>.from(action);
+          var preValidation = provider.validateVoiceAction(workingAction);
+          if (preValidation['isValid'] != true) {
+            final needsEdit = await showDialog<bool>(
               context: context,
               builder: (dialogContext) => AlertDialog(
                 title: Text(
-                  isEnglish ? 'Confirm voice command' : 'Konfirmasi perintah suara',
+                  isEnglish ? 'Incomplete voice command' : 'Perintah suara belum lengkap',
                   style: NaraTextStyles.h3,
                 ),
-                content: Text(summary, style: NaraTextStyles.body),
+                content: Text(
+                  (preValidation['message'] as String?) ??
+                      (isEnglish ? 'Please complete missing fields.' : 'Lengkapi data yang kurang.'),
+                  style: NaraTextStyles.body,
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
@@ -1388,12 +1387,84 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(isEnglish ? 'Edit' : 'Edit', style: NaraTextStyles.label),
+                  ),
+                ],
+              ),
+            );
+            if (needsEdit == true) {
+              final edited = await _showEditVoiceActionDialog(context, workingAction, isEnglish);
+              if (edited != null) {
+                workingAction = edited;
+                provider.replacePendingVoiceAction(workingAction);
+                preValidation = provider.validateVoiceAction(workingAction);
+              }
+            }
+          }
+
+          if (preValidation['isValid'] != true) {
+            _isShowing = false;
+            showAppSnackBar(
+              context,
+              content: Text(
+                (preValidation['message'] as String?) ??
+                    (isEnglish ? 'Please complete missing fields.' : 'Lengkapi data yang kurang.'),
+              ),
+            );
+            return;
+          }
+
+          bool approved = true;
+          if (provider.voiceConfirmEnabled) {
+            final decision = await showDialog<String>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(
+                  isEnglish ? 'Confirm voice command' : 'Konfirmasi perintah suara',
+                  style: NaraTextStyles.h3,
+                ),
+                content: Text(_voiceActionSummary(workingAction, isEnglish), style: NaraTextStyles.body),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+                    child: Text(I18n.t(dialogContext, 'cancel'), style: NaraTextStyles.label),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, 'edit'),
+                    child: Text(isEnglish ? 'Edit' : 'Edit', style: NaraTextStyles.label),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext, 'save'),
                     child: Text(I18n.t(dialogContext, 'save'), style: NaraTextStyles.label),
                   ),
                 ],
               ),
             );
-            approved = decision == true;
+
+            if (decision == 'edit') {
+              final edited = await _showEditVoiceActionDialog(context, workingAction, isEnglish);
+              if (edited != null) {
+                workingAction = edited;
+                provider.replacePendingVoiceAction(workingAction);
+                final reValidation = provider.validateVoiceAction(workingAction);
+                if (reValidation['isValid'] != true) {
+                  _isShowing = false;
+                  showAppSnackBar(
+                    context,
+                    content: Text(
+                      (reValidation['message'] as String?) ??
+                          (isEnglish ? 'Please complete missing fields.' : 'Lengkapi data yang kurang.'),
+                    ),
+                  );
+                  return;
+                }
+                approved = true;
+              } else {
+                approved = false;
+              }
+            } else {
+              approved = decision == 'save';
+            }
           }
 
           final saved = await provider.applyPendingVoiceAction(approved: approved);
@@ -1442,8 +1513,8 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           ? '-'
           : '${when.day}/${when.month}/${when.year} ${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
       return isEnglish
-          ? 'Create reminder "$title" at $timeText with mode $mode?'
-          : 'Buat reminder "$title" pada $timeText dengan mode $mode?';
+          ? 'Create reminder "$title" at $timeText with $mode?'
+          : 'Buat reminder "$title" pada $timeText dengan $mode?';
     }
     if (type == 'debt') {
       final amount = (action['amount'] as int?) ?? 0;
@@ -1471,6 +1542,157 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           : 'Simpan pembayaran sebagian${title == null || title.isEmpty ? '' : ' untuk "$title"'} sebesar ${formatRupiah(amount)}?';
     }
     return isEnglish ? 'Save this voice command?' : 'Simpan perintah suara ini?';
+  }
+
+  Future<Map<String, dynamic>?> _showEditVoiceActionDialog(
+    BuildContext context,
+    Map<String, dynamic> action,
+    bool isEnglish,
+  ) async {
+    final type = action['type'] as String? ?? '';
+    final titleController = TextEditingController(text: (action['title'] as String?) ?? '');
+    final amountController = TextEditingController(
+      text: ((action['amount'] as int?) ?? 0) > 0 ? '${action['amount']}' : '',
+    );
+    DateTime? reminderAt = action['scheduledAt'] as DateTime?;
+    String reminderMode = (action['mode'] as String?) ?? 'Notification';
+    String debtType = (action['debtType'] as String?) ?? 'utang';
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          title: Text(isEnglish ? 'Edit command' : 'Edit perintah', style: NaraTextStyles.h3),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (type == 'expense' || type == 'income' || type == 'debt' || type == 'reminder') ...[
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: isEnglish ? 'Title' : 'Judul',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (type == 'expense' || type == 'income' || type == 'debt' || type == 'debt_payment') ...[
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [RupiahInputFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'Nominal',
+                      prefixText: 'Rp ',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (type == 'reminder') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final now = DateTime.now();
+                            final pickedDate = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: reminderAt ?? now,
+                              firstDate: now,
+                              lastDate: now.add(const Duration(days: 365)),
+                            );
+                            if (pickedDate == null) return;
+                            final pickedTime = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: TimeOfDay.fromDateTime(reminderAt ?? now),
+                            );
+                            if (pickedTime == null) return;
+                            setLocalState(() {
+                              reminderAt = DateTime(
+                                pickedDate.year,
+                                pickedDate.month,
+                                pickedDate.day,
+                                pickedTime.hour,
+                                pickedTime.minute,
+                              );
+                            });
+                          },
+                          icon: const Icon(Icons.schedule_rounded, size: 16),
+                          label: Text(
+                            reminderAt == null
+                                ? (isEnglish ? 'Set time' : 'Atur waktu')
+                                : '${reminderAt!.day}/${reminderAt!.month}/${reminderAt!.year} ${reminderAt!.hour.toString().padLeft(2, '0')}:${reminderAt!.minute.toString().padLeft(2, '0')}',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: reminderMode,
+                    items: const [
+                      DropdownMenuItem(value: 'Notification', child: Text('Notification')),
+                      DropdownMenuItem(value: 'Loud Alarm', child: Text('Loud Alarm')),
+                      DropdownMenuItem(value: 'Fake Call', child: Text('Fake Call')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setLocalState(() => reminderMode = value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: isEnglish ? 'Type' : 'Jenis',
+                    ),
+                  ),
+                ],
+                if (type == 'debt') ...[
+                  DropdownButtonFormField<String>(
+                    value: debtType,
+                    items: [
+                      DropdownMenuItem(value: 'utang', child: Text(isEnglish ? 'Debt' : 'Utang')),
+                      DropdownMenuItem(value: 'piutang', child: Text(isEnglish ? 'Receivable' : 'Piutang')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setLocalState(() => debtType = value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: isEnglish ? 'Type' : 'Jenis',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(I18n.t(dialogContext, 'cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final updated = Map<String, dynamic>.from(action);
+                if (type == 'expense' || type == 'income' || type == 'debt' || type == 'reminder') {
+                  updated['title'] = titleController.text.trim();
+                }
+                if (type == 'expense' || type == 'income' || type == 'debt' || type == 'debt_payment') {
+                  updated['amount'] = parseRupiahInput(amountController.text);
+                }
+                if (type == 'reminder') {
+                  updated['scheduledAt'] = reminderAt;
+                  updated['mode'] = reminderMode;
+                }
+                if (type == 'debt') {
+                  updated['debtType'] = debtType;
+                }
+                Navigator.pop(dialogContext, updated);
+              },
+              child: Text(I18n.t(dialogContext, 'save')),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
