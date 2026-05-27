@@ -32,7 +32,10 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final provider = context.read<AppProvider>();
+      provider.setTransactionTabIndex(_tabController.index, notify: false);
+      setState(() {});
     });
   }
 
@@ -45,6 +48,13 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final activeProvider = context.watch<AppProvider>();
+    final desiredTabIndex = activeProvider.transactionTabIndex.clamp(0, 2);
+    if (_tabController.index != desiredTabIndex && !_tabController.indexIsChanging) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _tabController.animateTo(desiredTabIndex);
+      });
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     String tr(String idText, String enText) => _tr(context, activeProvider, idText, enText);
@@ -397,6 +407,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   subtitle: expense['time'] as String? ?? '-',
                   amount: '-${formatRupiah((expense['amount'] as num?) ?? 0)}',
                   amountColor: NaraColors.textPrimary,
+                  onDelete: originalIndex >= 0
+                      ? () => _confirmDeleteHistoryItem(
+                            context: context,
+                            provider: provider,
+                            type: _HistoryDeleteType.expense,
+                            index: originalIndex,
+                          )
+                      : null,
                   onTap: originalIndex >= 0
                       ? () => _showEditExpenseDialog(
                             context: context,
@@ -575,6 +593,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   subtitle: income['time'] as String? ?? '-',
                   amount: '+${formatRupiah((income['amount'] as num?) ?? 0)}',
                   amountColor: NaraColors.success,
+                  onDelete: originalIndex >= 0
+                      ? () => _confirmDeleteHistoryItem(
+                            context: context,
+                            provider: provider,
+                            type: _HistoryDeleteType.income,
+                            index: originalIndex,
+                          )
+                      : null,
                   onTap: originalIndex >= 0
                       ? () => _showEditIncomeDialog(
                             context: context,
@@ -954,6 +980,19 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       borderColor: NaraColors.primary.withValues(alpha: 0.35),
                     ),
                     const SizedBox(height: 12),
+                    _ActionButton(
+                      label: tr('Hapus', 'Delete'),
+                      onTap: () => _confirmDeleteHistoryItem(
+                        context: context,
+                        provider: provider,
+                        type: _HistoryDeleteType.debt,
+                        index: originalIndex,
+                      ),
+                      color: NaraColors.surfaceCard,
+                      textColor: NaraColors.danger,
+                      borderColor: NaraColors.danger.withValues(alpha: 0.35),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1183,6 +1222,86 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     if (selectedDate == null || !mounted) return;
     onSelected(DateUtils.dateOnly(selectedDate));
+  }
+
+  Future<void> _confirmDeleteHistoryItem({
+    required BuildContext context,
+    required AppProvider provider,
+    required _HistoryDeleteType type,
+    required int index,
+  }) async {
+    final isEnglish = provider.language == 'English';
+    String title() => switch (type) {
+          _HistoryDeleteType.expense => isEnglish ? 'Delete expense?' : 'Hapus pengeluaran?',
+          _HistoryDeleteType.income => isEnglish ? 'Delete income?' : 'Hapus pemasukan?',
+          _HistoryDeleteType.debt => isEnglish ? 'Delete debt/receivable?' : 'Hapus utang/piutang?',
+        };
+
+    late final Map<String, dynamic> payload;
+    if (type == _HistoryDeleteType.expense) {
+      if (index < 0 || index >= provider.expenses.length) return;
+      payload = Map<String, dynamic>.from(provider.expenses[index]);
+    } else if (type == _HistoryDeleteType.income) {
+      if (index < 0 || index >= provider.incomes.length) return;
+      payload = Map<String, dynamic>.from(provider.incomes[index]);
+    } else {
+      if (index < 0 || index >= provider.debts.length) return;
+      payload = Map<String, dynamic>.from(provider.debts[index]);
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title(), style: NaraTextStyles.h3),
+        content: Text(
+          isEnglish
+              ? 'Deleting this data will affect summaries, charts, and related reports.'
+              : 'Data yang dihapus akan mengubah ringkasan, grafik, dan laporan periode terkait.',
+          style: NaraTextStyles.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(I18n.t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(isEnglish ? 'Delete' : 'Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    if (type == _HistoryDeleteType.expense) {
+      provider.removeExpenseAt(index);
+    } else if (type == _HistoryDeleteType.income) {
+      provider.removeIncomeAt(index);
+    } else {
+      provider.removeDebtAt(index);
+    }
+
+    showAppSnackBar(
+      context,
+      duration: const Duration(seconds: 5),
+      content: Text(
+        isEnglish ? 'Data deleted.' : 'Data berhasil dihapus.',
+        style: NaraTextStyles.body,
+      ),
+      action: SnackBarAction(
+        label: isEnglish ? 'Undo' : 'Urungkan',
+        onPressed: () {
+          if (type == _HistoryDeleteType.expense) {
+            provider.restoreExpenseAt(index, payload);
+          } else if (type == _HistoryDeleteType.income) {
+            provider.restoreIncomeAt(index, payload);
+          } else {
+            provider.restoreDebtAt(index, payload);
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _showBudgetDialog(BuildContext context, AppProvider provider) async {
@@ -2224,6 +2343,7 @@ enum _TransactionFilterPreset { month, week, year, custom }
 enum _DebtFilter { all, unpaid, paid, overdue }
 enum _DebtTypeFilter { all, debt, receivable }
 enum _DebtDueFilter { all, today, next7Days, overdue }
+enum _HistoryDeleteType { expense, income, debt }
 
 class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
   @override
@@ -2358,6 +2478,7 @@ class _TransactionItem extends StatelessWidget {
   final String amount;
   final Color amountColor;
   final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const _TransactionItem({
     required this.icon,
@@ -2366,6 +2487,7 @@ class _TransactionItem extends StatelessWidget {
     required this.amount,
     required this.amountColor,
     this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -2410,6 +2532,15 @@ class _TransactionItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: NaraTextStyles.label.copyWith(color: amountColor, fontWeight: FontWeight.bold),
           ),
+          if (onDelete != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Hapus',
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded, color: NaraColors.danger, size: 20),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ],
       ),
     );

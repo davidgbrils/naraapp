@@ -48,6 +48,7 @@ class AppProvider extends ChangeNotifier {
   final bool _isLoggedIn = false;
   String _userName = 'Budi';
   int _selectedNavIndex = 0;
+  int _transactionTabIndex = 0;
   final NotificationService _notificationService = NotificationService();
   final VoiceServiceContract _voiceService;
   int _nextNotificationId = 0;
@@ -86,6 +87,7 @@ class AppProvider extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   String get userName => _userName;
   int get selectedNavIndex => _selectedNavIndex;
+  int get transactionTabIndex => _transactionTabIndex;
   bool get isDarkMode => _isDarkMode;
   bool get notificationsEnabled => _notificationsEnabled;
   bool get isAppInForeground => _isAppInForeground;
@@ -116,6 +118,15 @@ class AppProvider extends ChangeNotifier {
   void setNavIndex(int index) {
     _selectedNavIndex = index.clamp(0, 3);
     notifyListeners();
+  }
+
+  void setTransactionTabIndex(int index, {bool notify = true}) {
+    final safe = index.clamp(0, 2);
+    if (_transactionTabIndex == safe) return;
+    _transactionTabIndex = safe;
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   Future<void> setDarkMode(bool value) async {
@@ -1389,6 +1400,13 @@ class AppProvider extends ChangeNotifier {
     _saveExpenses();
     notifyListeners();
   }
+
+  void restoreExpenseAt(int index, Map<String, dynamic> expense) {
+    final safeIndex = index.clamp(0, _expenses.length);
+    _expenses.insert(safeIndex, Map<String, dynamic>.from(expense));
+    _saveExpenses();
+    notifyListeners();
+  }
   
   void addIncome(Map<String, dynamic> income) {
     income['createdAt'] = income['createdAt'] ?? DateTime.now();
@@ -1404,6 +1422,20 @@ class AppProvider extends ChangeNotifier {
     _ensureDebtId(debt);
     _debts.insert(0, debt);
     _saveDebts();
+    notifyListeners();
+  }
+
+  void removeIncomeAt(int index) {
+    if (index < 0 || index >= _incomes.length) return;
+    _incomes.removeAt(index);
+    _saveIncomes();
+    notifyListeners();
+  }
+
+  void restoreIncomeAt(int index, Map<String, dynamic> income) {
+    final safeIndex = index.clamp(0, _incomes.length);
+    _incomes.insert(safeIndex, Map<String, dynamic>.from(income));
+    _saveIncomes();
     notifyListeners();
   }
 
@@ -1439,6 +1471,20 @@ class AppProvider extends ChangeNotifier {
     if (index == -1) return;
 
     markDebtAsPaid(index);
+  }
+
+  void removeDebtAt(int index) {
+    if (index < 0 || index >= _debts.length) return;
+    _debts.removeAt(index);
+    _saveDebts();
+    notifyListeners();
+  }
+
+  void restoreDebtAt(int index, Map<String, dynamic> debt) {
+    final safeIndex = index.clamp(0, _debts.length);
+    _debts.insert(safeIndex, Map<String, dynamic>.from(debt));
+    _saveDebts();
+    notifyListeners();
   }
 
   void updateDebtPayment(int index, int paymentAmount) {
@@ -1719,12 +1765,6 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void removeIncomeAt(int index) {
-    if (index < 0 || index >= _incomes.length) return;
-    _incomes.removeAt(index);
-    _saveIncomes();
-    notifyListeners();
-  }
 
   bool hasPotentialDuplicateExpense({
     required String title,

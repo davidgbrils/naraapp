@@ -1828,6 +1828,12 @@ class _RecentActivityListState extends State<_RecentActivityList> {
                         amountColor: entry.value.amountColor,
                         onDismissed: _hideActivity,
                         onTap: () {
+                          final transactionTabIndex = switch (entry.value.type) {
+                            'income' => 1,
+                            'debt' => 2,
+                            _ => 0,
+                          };
+                          provider.setTransactionTabIndex(transactionTabIndex);
                           provider.setNavIndex(1);
                           showAppSnackBar(
                             context,
