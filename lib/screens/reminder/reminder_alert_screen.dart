@@ -312,7 +312,7 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
                           onPressed: _handleAnswer,
                           icon: const Icon(Icons.notifications_active_rounded, size: 24),
                           label: Text(
-                            I18n.t(context, 'reminder'),
+                            I18n.t(context, 'complete'),
                             style: NaraTextStyles.label.copyWith(
                               color: NaraColors.textOnPrimary,
                               fontSize: 16,
@@ -344,7 +344,7 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
                             ),
                           ),
                           child: Text(
-                            '${I18n.t(context, 'snooze')} 5 Menit',
+                            I18n.t(context, 'snooze_5_minutes'),
                             style: NaraTextStyles.label.copyWith(color: foregroundTextColor),
                           ),
                         ),
@@ -487,7 +487,7 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
                             child: OutlinedButton.icon(
                               onPressed: _handleSnooze,
                               icon: const Icon(Icons.snooze_rounded, size: 20),
-                              label: Text('${I18n.t(context, 'snooze')} 5 Menit'),
+                              label: Text(I18n.t(context, 'snooze_5_minutes')),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: NaraColors.surfaceWhite,
                                 side: BorderSide(

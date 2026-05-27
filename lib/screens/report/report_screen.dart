@@ -916,11 +916,15 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompactWidth = screenWidth < 360;
+
     return Scaffold(
       backgroundColor: NaraColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 72,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
@@ -928,37 +932,72 @@ class _ReportScreenState extends State<ReportScreen> {
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(I18n.t(context, 'financial_report'), style: NaraTextStyles.h2),
+            Text(
+              I18n.t(context, 'financial_report'),
+              style: NaraTextStyles.h2,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 2),
             Text(
               I18n.t(context, 'report_desc'),
               style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         centerTitle: true,
-        actions: [
-          Consumer<AppProvider>(
-            builder: (context, provider, _) => Padding(
-              padding: const EdgeInsets.only(right: NaraSpacing.md),
-              child: IconButton(
-                icon: const Icon(Icons.download_rounded, color: NaraColors.primary),
-                onPressed: () => _downloadSummary(provider),
-                tooltip: I18n.t(context, 'download_report'),
-              ),
-            ),
-          ),
-          Consumer<AppProvider>(
-            builder: (context, provider, _) => Padding(
-              padding: const EdgeInsets.only(right: NaraSpacing.md),
-              child: IconButton(
-                icon: const Icon(Icons.share_rounded, color: NaraColors.primary),
-                onPressed: () => _downloadSummary(provider, shareAfterDownload: true),
-                tooltip: 'Bagikan laporan',
-              ),
-            ),
-          ),
-        ],
+        actions: isCompactWidth
+            ? [
+                Consumer<AppProvider>(
+                  builder: (context, provider, _) => Padding(
+                    padding: const EdgeInsets.only(right: NaraSpacing.sm),
+                    child: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert_rounded, color: NaraColors.primary),
+                      onSelected: (value) {
+                        if (value == 'download') {
+                          _downloadSummary(provider);
+                        } else if (value == 'share') {
+                          _downloadSummary(provider, shareAfterDownload: true);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem<String>(
+                          value: 'download',
+                          child: Text(I18n.t(context, 'download_report')),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'share',
+                          child: Text('Bagikan laporan'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ]
+            : [
+                Consumer<AppProvider>(
+                  builder: (context, provider, _) => Padding(
+                    padding: const EdgeInsets.only(right: NaraSpacing.md),
+                    child: IconButton(
+                      icon: const Icon(Icons.download_rounded, color: NaraColors.primary),
+                      onPressed: () => _downloadSummary(provider),
+                      tooltip: I18n.t(context, 'download_report'),
+                    ),
+                  ),
+                ),
+                Consumer<AppProvider>(
+                  builder: (context, provider, _) => Padding(
+                    padding: const EdgeInsets.only(right: NaraSpacing.md),
+                    child: IconButton(
+                      icon: const Icon(Icons.share_rounded, color: NaraColors.primary),
+                      onPressed: () => _downloadSummary(provider, shareAfterDownload: true),
+                      tooltip: 'Bagikan laporan',
+                    ),
+                  ),
+                ),
+              ],
       ),
       body: Consumer<AppProvider>(
         builder: (context, provider, _) {
@@ -1136,27 +1175,48 @@ class _ReportScreenState extends State<ReportScreen> {
                   ),
                 ),
                 const SizedBox(height: NaraSpacing.xxl),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryCard(
+                if (isCompactWidth)
+                  Column(
+                    children: [
+                      _SummaryCard(
                         title: I18n.t(context, 'income'),
                         amount: formatRupiah(totalIncome),
                         color: NaraColors.success,
                         icon: Icons.arrow_downward_rounded,
+                        fullWidth: true,
                       ),
-                    ),
-                    const SizedBox(width: NaraSpacing.md),
-                    Expanded(
-                      child: _SummaryCard(
+                      const SizedBox(height: NaraSpacing.md),
+                      _SummaryCard(
                         title: I18n.t(context, 'expense'),
                         amount: formatRupiah(totalExpense),
                         color: NaraColors.accentOrange,
                         icon: Icons.arrow_upward_rounded,
+                        fullWidth: true,
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryCard(
+                          title: I18n.t(context, 'income'),
+                          amount: formatRupiah(totalIncome),
+                          color: NaraColors.success,
+                          icon: Icons.arrow_downward_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: NaraSpacing.md),
+                      Expanded(
+                        child: _SummaryCard(
+                          title: I18n.t(context, 'expense'),
+                          amount: formatRupiah(totalExpense),
+                          color: NaraColors.accentOrange,
+                          icon: Icons.arrow_upward_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: NaraSpacing.md),
                 _SummaryCard(
                   title: I18n.t(context, 'net_balance'),
@@ -1362,7 +1422,13 @@ class _SummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
+                Text(
+                  title,
+                  style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
                 SizedBox(
                   width: double.infinity,
@@ -1385,7 +1451,7 @@ class _SummaryCard extends StatelessWidget {
                     style: NaraTextStyles.caption.copyWith(
                       color: NaraColors.textSecondary,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],

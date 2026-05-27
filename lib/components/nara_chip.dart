@@ -57,11 +57,16 @@ class _NaraChipState extends State<NaraChip> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              widget.label,
-              style: NaraTextStyles.bodySmall.copyWith(
-                color: widget.textColor ?? (widget.selected ? NaraColors.primary : NaraColors.textPrimary),
-                fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
+            Flexible(
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: NaraTextStyles.bodySmall.copyWith(
+                  color: widget.textColor ?? (widget.selected ? NaraColors.primary : NaraColors.textPrimary),
+                  fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
+                ),
               ),
             ),
             if (widget.onRemove != null) ...[

@@ -606,6 +606,17 @@ class SettingsScreen extends StatelessWidget {
                       activeThumbColor: NaraColors.primary,
                     ),
                   ),
+                  const SizedBox(height: NaraSpacing.md),
+                  _SettingsItem(
+                    icon: Icons.swipe_rounded,
+                    title: I18n.t(context, 'transaction_swipe_actions'),
+                    subtitle: I18n.t(context, 'transaction_swipe_actions_subtitle'),
+                    trailing: Switch(
+                      value: provider.transactionSwipeEnabled,
+                      onChanged: (value) => provider.setTransactionSwipeEnabled(value),
+                      activeThumbColor: NaraColors.primary,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _SettingsItem(
                     icon: Icons.language_rounded,

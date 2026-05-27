@@ -13,7 +13,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -62,6 +66,10 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun buildContent(): LinearLayout {
+    val language = currentLanguageCode()
+    val completeLabel = if (language == "id") "Selesai" else "Complete"
+    val snoozeLabel = if (language == "id") "Tunda 5 Menit" else "Snooze 5 Minutes"
+
     val root = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER
@@ -70,38 +78,118 @@ class AlarmAlertActivity : Activity() {
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT
       )
+      setBackgroundColor(Color.parseColor("#0B1220"))
+    }
+
+    val card = LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      gravity = Gravity.CENTER_HORIZONTAL
+      val lp = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
+      )
+      layoutParams = lp
+      setPadding(36, 44, 36, 28)
+      background = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 40f
+        setColor(Color.parseColor("#F8FAFC"))
+      }
+    }
+
+    val badgeView = TextView(this).apply {
+      text = mode.uppercase()
+      textSize = 11f
+      setTextColor(Color.parseColor("#B45309"))
+      gravity = Gravity.CENTER
+      setPadding(20, 10, 20, 10)
+      background = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 999f
+        setColor(Color.parseColor("#FEF3C7"))
+      }
+    }
+
+    val spacerSm = View(this).apply {
+      layoutParams = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        14
+      )
+    }
+
+    val spacerMd = View(this).apply {
+      layoutParams = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        20
+      )
     }
 
     val titleView = TextView(this).apply {
       text = title
       textSize = 30f
+      setTypeface(typeface, Typeface.BOLD)
+      setTextColor(Color.parseColor("#111827"))
       gravity = Gravity.CENTER
     }
     val bodyView = TextView(this).apply {
       text = body
-      textSize = 18f
+      textSize = 16f
+      setTextColor(Color.parseColor("#475569"))
       gravity = Gravity.CENTER
     }
     val modeView = TextView(this).apply {
       text = mode
-      textSize = 14f
+      textSize = 12f
+      setTextColor(Color.parseColor("#64748B"))
       gravity = Gravity.CENTER
     }
 
     val answerButton = Button(this).apply {
-      text = "Angkat (Selesai)"
+      text = completeLabel
+      setTextColor(Color.WHITE)
+      textSize = 16f
+      setTypeface(typeface, Typeface.BOLD)
+      background = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 22f
+        setColor(Color.parseColor("#2563EB"))
+      }
+      val lp = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
+      )
+      lp.topMargin = 20
+      layoutParams = lp
       setOnClickListener { handleComplete() }
     }
     val snoozeButton = Button(this).apply {
-      text = "Tunda 5 Menit"
+      text = snoozeLabel
+      setTextColor(Color.parseColor("#111827"))
+      textSize = 15f
+      background = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 22f
+        setColor(Color.parseColor("#E2E8F0"))
+      }
+      val lp = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
+      )
+      lp.topMargin = 12
+      layoutParams = lp
       setOnClickListener { handleSnooze() }
     }
 
-    root.addView(titleView)
-    root.addView(bodyView)
-    root.addView(modeView)
-    root.addView(answerButton)
-    root.addView(snoozeButton)
+    card.addView(badgeView)
+    card.addView(spacerSm)
+    card.addView(titleView)
+    card.addView(spacerSm)
+    card.addView(bodyView)
+    card.addView(spacerMd)
+    card.addView(modeView)
+    card.addView(answerButton)
+    card.addView(snoozeButton)
+    root.addView(card)
     return root
   }
 
@@ -211,5 +299,14 @@ class AlarmAlertActivity : Activity() {
     try {
       startService(stopIntent)
     } catch (_: Exception) {}
+  }
+
+  private fun currentLanguageCode(): String {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      resources.configuration.locales[0]?.language ?: "en"
+    } else {
+      @Suppress("DEPRECATION")
+      resources.configuration.locale?.language ?: "en"
+    }
   }
 }

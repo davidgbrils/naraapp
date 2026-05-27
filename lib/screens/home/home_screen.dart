@@ -342,6 +342,7 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
   final List<String> _recentVoiceCommands = <String>[];
   DateTime? _lastVoiceDisabledSnackAt;
   bool _isVoiceDisabledSnackVisible = false;
+  bool _isHoldingToTalk = false;
   late final TextEditingController _manualCommandController;
   Map<String, dynamic>? _manualCommandPreview;
 
@@ -471,52 +472,106 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                 enabled: true,
                 label: I18n.t(context, 'voice_button_semantics'),
                 child: GestureDetector(
-                  onTap: () async {
+                  onTapDown: (_) async {
                     HapticFeedback.mediumImpact();
                     if (!provider.voiceBetaEnabled) {
                       _showVoiceDisabledSnackBar(context);
                       return;
                     }
+                    if (mounted) {
+                      setState(() => _isHoldingToTalk = true);
+                    }
                     await provider.startListening();
                   },
+                  onTapUp: (_) async {
+                    if (!provider.voiceBetaEnabled) return;
+                    if (mounted) {
+                      setState(() => _isHoldingToTalk = false);
+                    }
+                    HapticFeedback.selectionClick();
+                    await provider.stopListening();
+                  },
+                  onTapCancel: () async {
+                    if (!provider.voiceBetaEnabled) return;
+                    if (mounted) {
+                      setState(() => _isHoldingToTalk = false);
+                    }
+                    await provider.stopListening();
+                  },
                   child: Tooltip(
-                    message: I18n.t(context, 'tap_to_speak'),
-                    child: Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: provider.voiceBetaEnabled
-                            ? NaraColors.primaryLight
-                            : NaraColors.surfaceCard,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: provider.voiceBetaEnabled
-                              ? NaraColors.primary
-                              : NaraColors.textHint,
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (provider.voiceBetaEnabled
+                    message: I18n.t(context, 'hold_to_speak'),
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 140),
+                      curve: Curves.easeOut,
+                      scale: _isHoldingToTalk ? 1.06 : 1.0,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (_isHoldingToTalk)
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 116,
+                              height: 116,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: NaraColors.primary.withValues(alpha: 0.12),
+                                border: Border.all(
+                                  color: NaraColors.primary.withValues(alpha: 0.45),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 140),
+                            curve: Curves.easeOut,
+                            width: 90,
+                            height: 90,
+                            decoration: BoxDecoration(
+                              color: provider.voiceBetaEnabled
+                                  ? (_isHoldingToTalk ? NaraColors.primary : NaraColors.primaryLight)
+                                  : NaraColors.surfaceCard,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: provider.voiceBetaEnabled
                                     ? NaraColors.primary
-                                    : NaraColors.textHint)
-                                .withValues(alpha: 0.35),
-                            blurRadius: 20,
-                            spreadRadius: 2,
+                                    : NaraColors.textHint,
+                                width: _isHoldingToTalk ? 3 : 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (provider.voiceBetaEnabled
+                                          ? NaraColors.primary
+                                          : NaraColors.textHint)
+                                      .withValues(alpha: _isHoldingToTalk ? 0.5 : 0.35),
+                                  blurRadius: _isHoldingToTalk ? 26 : 20,
+                                  spreadRadius: _isHoldingToTalk ? 5 : 2,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.mic_rounded,
+                              size: 40,
+                              color: provider.voiceBetaEnabled
+                                  ? (_isHoldingToTalk ? NaraColors.textOnPrimary : NaraColors.primary)
+                                  : NaraColors.textSecondary,
+                            ),
                           ),
                         ],
-                      ),
-                      child: Icon(
-                        Icons.mic_rounded,
-                        size: 40,
-                        color: provider.voiceBetaEnabled
-                            ? NaraColors.primary
-                            : NaraColors.textSecondary,
                       ),
                     ),
                   ),
                 ),
               ),
+              if (provider.voiceBetaEnabled && _isHoldingToTalk) ...[
+                const SizedBox(height: 10),
+                Text(
+                  I18n.t(context, 'listening'),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               if (!provider.voiceBetaEnabled) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -1393,7 +1448,9 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
               ),
             );
             if (needsEdit == true) {
-              final edited = await _showEditVoiceActionDialog(context, workingAction, isEnglish);
+              if (!mounted) return;
+              final edited = await _showEditVoiceActionDialog(this.context, workingAction, isEnglish);
+              if (!context.mounted) return;
               if (edited != null) {
                 workingAction = edited;
                 provider.replacePendingVoiceAction(workingAction);
@@ -1403,6 +1460,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           }
 
           if (preValidation['isValid'] != true) {
+            if (!context.mounted) return;
             _isShowing = false;
             showAppSnackBar(
               context,
@@ -1416,6 +1474,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
 
           bool approved = true;
           if (provider.voiceConfirmEnabled) {
+            if (!context.mounted) return;
             final decision = await showDialog<String>(
               context: context,
               builder: (dialogContext) => AlertDialog(
@@ -1442,12 +1501,15 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
             );
 
             if (decision == 'edit') {
+              if (!context.mounted) return;
               final edited = await _showEditVoiceActionDialog(context, workingAction, isEnglish);
+              if (!context.mounted) return;
               if (edited != null) {
                 workingAction = edited;
                 provider.replacePendingVoiceAction(workingAction);
                 final reValidation = provider.validateVoiceAction(workingAction);
                 if (reValidation['isValid'] != true) {
+                  if (!context.mounted) return;
                   _isShowing = false;
                   showAppSnackBar(
                     context,
@@ -1468,7 +1530,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
           }
 
           final saved = await provider.applyPendingVoiceAction(approved: approved);
-          if (!mounted) return;
+          if (!context.mounted) return;
           _isShowing = false;
           showAppSnackBar(
             context,
@@ -1492,18 +1554,28 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
     if (type == 'expense') {
       final amount = (action['amount'] as int?) ?? 0;
       final title = action['title'] as String? ?? (isEnglish ? 'Expense' : 'Pengeluaran');
-      final category = action['category'] as String? ?? (isEnglish ? 'Others' : 'Lainnya');
+      final category = (action['category'] as String?)?.trim();
+      final hasCategory = category != null && category.isNotEmpty;
       return isEnglish
-          ? 'Save expense "$title" amount ${formatRupiah(amount)} in category $category?'
-          : 'Simpan pengeluaran "$title" sebesar ${formatRupiah(amount)} pada kategori $category?';
+          ? (hasCategory
+              ? 'Save expense "$title" amount ${formatRupiah(amount)} in category $category?'
+              : 'Save expense "$title" amount ${formatRupiah(amount)}?')
+          : (hasCategory
+              ? 'Simpan pengeluaran "$title" sebesar ${formatRupiah(amount)} pada kategori $category?'
+              : 'Simpan pengeluaran "$title" sebesar ${formatRupiah(amount)}?');
     }
     if (type == 'income') {
       final amount = (action['amount'] as int?) ?? 0;
       final title = action['title'] as String? ?? (isEnglish ? 'Income' : 'Pemasukan');
-      final category = action['category'] as String? ?? (isEnglish ? 'Others' : 'Lainnya');
+      final category = (action['category'] as String?)?.trim();
+      final hasCategory = category != null && category.isNotEmpty;
       return isEnglish
-          ? 'Save income "$title" amount ${formatRupiah(amount)} in category $category?'
-          : 'Simpan pemasukan "$title" sebesar ${formatRupiah(amount)} pada kategori $category?';
+          ? (hasCategory
+              ? 'Save income "$title" amount ${formatRupiah(amount)} in category $category?'
+              : 'Save income "$title" amount ${formatRupiah(amount)}?')
+          : (hasCategory
+              ? 'Simpan pemasukan "$title" sebesar ${formatRupiah(amount)} pada kategori $category?'
+              : 'Simpan pemasukan "$title" sebesar ${formatRupiah(amount)}?');
     }
     if (type == 'reminder') {
       final title = action['title'] as String? ?? 'Reminder';
@@ -1596,13 +1668,20 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                         child: OutlinedButton.icon(
                           onPressed: () async {
                             final now = DateTime.now();
+                            final firstAllowedDate = DateTime(now.year, now.month, now.day);
+                            final safeInitialDate = reminderAt != null &&
+                                    !DateTime(reminderAt!.year, reminderAt!.month, reminderAt!.day)
+                                        .isBefore(firstAllowedDate)
+                                ? reminderAt!
+                                : firstAllowedDate;
                             final pickedDate = await showDatePicker(
                               context: dialogContext,
-                              initialDate: reminderAt ?? now,
-                              firstDate: now,
+                              initialDate: safeInitialDate,
+                              firstDate: firstAllowedDate,
                               lastDate: now.add(const Duration(days: 365)),
                             );
                             if (pickedDate == null) return;
+                            if (!context.mounted) return;
                             final pickedTime = await showTimePicker(
                               context: dialogContext,
                               initialTime: TimeOfDay.fromDateTime(reminderAt ?? now),
@@ -1622,7 +1701,8 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                           label: Text(
                             reminderAt == null
                                 ? (isEnglish ? 'Set time' : 'Atur waktu')
-                                : '${reminderAt!.day}/${reminderAt!.month}/${reminderAt!.year} ${reminderAt!.hour.toString().padLeft(2, '0')}:${reminderAt!.minute.toString().padLeft(2, '0')}',
+                                : '${MaterialLocalizations.of(context).formatShortDate(reminderAt!)} '
+                                    '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(reminderAt!), alwaysUse24HourFormat: true)}',
                           ),
                         ),
                       ),
@@ -1630,7 +1710,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: reminderMode,
+                    initialValue: reminderMode,
                     items: const [
                       DropdownMenuItem(value: 'Notification', child: Text('Notification')),
                       DropdownMenuItem(value: 'Loud Alarm', child: Text('Loud Alarm')),
@@ -1647,7 +1727,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                 ],
                 if (type == 'debt') ...[
                   DropdownButtonFormField<String>(
-                    value: debtType,
+                    initialValue: debtType,
                     items: [
                       DropdownMenuItem(value: 'utang', child: Text(isEnglish ? 'Debt' : 'Utang')),
                       DropdownMenuItem(value: 'piutang', child: Text(isEnglish ? 'Receivable' : 'Piutang')),

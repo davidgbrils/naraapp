@@ -24,6 +24,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
   _DebtFilter _debtFilter = _DebtFilter.all;
   _DebtTypeFilter _debtTypeFilter = _DebtTypeFilter.all;
   _DebtDueFilter _debtDueFilter = _DebtDueFilter.all;
+  bool _debtFilterExpanded = false;
   DateTime? _expenseCustomDate;
   DateTime? _incomeCustomDate;
 
@@ -95,6 +96,15 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            tooltip: I18n.t(context, 'history'),
+            onPressed: () => Navigator.pushNamed(
+              context,
+              '/history',
+              arguments: {'tab': 'expense'},
+            ),
+          ),
           NotificationBellButton(
             iconColor: scheme.onSurface,
             tooltip: tr('Lihat notifikasi', 'View notifications'),
@@ -373,7 +383,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 ),
               ),
               TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/report'),
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  '/history',
+                  arguments: {'tab': 'expense'},
+                ),
                 child: Text(tr('Lihat Semua', 'See All'),
                     style: NaraTextStyles.label.copyWith(color: NaraColors.primary)),
               ),
@@ -384,6 +398,20 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             _filterDescription(context, _expenseFilter, _expenseCustomDate),
             style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
           ),
+          const SizedBox(height: 8),
+          if (provider.transactionSwipeEnabled)
+            Row(
+              children: [
+                Icon(Icons.swipe_rounded, size: 14, color: NaraColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    I18n.t(context, 'transaction_swipe_actions_subtitle'),
+                    style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           if (filteredExpenses.isEmpty)
             NaraCard(
@@ -402,11 +430,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               (expense) {
                 final originalIndex = provider.expenses.indexOf(expense);
                 return _TransactionItem(
+                  itemKey: ValueKey('expense-$originalIndex-${expense['title'] ?? ''}'),
+                  swipeEnabled: provider.transactionSwipeEnabled,
                   icon: _iconFromName(expense['icon'] as String? ?? 'shopping_bag'),
                   title: expense['title'] as String? ?? '-',
                   subtitle: expense['time'] as String? ?? '-',
                   amount: '-${formatRupiah((expense['amount'] as num?) ?? 0)}',
                   amountColor: NaraColors.textPrimary,
+                  onSwipeStartToEnd: originalIndex >= 0
+                      ? () => _showEditExpenseDialog(
+                            context: context,
+                            provider: provider,
+                            index: originalIndex,
+                          )
+                      : null,
+                  onSwipeEndToStart: originalIndex >= 0
+                      ? () => _confirmDeleteHistoryItem(
+                            context: context,
+                            provider: provider,
+                            type: _HistoryDeleteType.expense,
+                            index: originalIndex,
+                          )
+                      : null,
                   onDelete: originalIndex >= 0
                       ? () => _confirmDeleteHistoryItem(
                             context: context,
@@ -557,7 +602,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 ),
               ),
               TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/report'),
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  '/history',
+                  arguments: {'tab': 'income'},
+                ),
                 child: Text(
                   tr('Lihat Semua', 'See All'),
                   style: NaraTextStyles.label.copyWith(color: NaraColors.primary),
@@ -570,6 +619,20 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             _filterDescription(context, _incomeFilter, _incomeCustomDate),
             style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
           ),
+          const SizedBox(height: 8),
+          if (provider.transactionSwipeEnabled)
+            Row(
+              children: [
+                Icon(Icons.swipe_rounded, size: 14, color: NaraColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    I18n.t(context, 'transaction_swipe_actions_subtitle'),
+                    style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           if (filteredIncomes.isEmpty)
             NaraCard(
@@ -588,11 +651,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               (income) {
                 final originalIndex = provider.incomes.indexOf(income);
                 return _TransactionItem(
+                  itemKey: ValueKey('income-$originalIndex-${income['title'] ?? ''}'),
+                  swipeEnabled: provider.transactionSwipeEnabled,
                   icon: _iconFromName(income['icon'] as String? ?? 'account_balance_wallet'),
                   title: income['title'] as String? ?? '-',
                   subtitle: income['time'] as String? ?? '-',
                   amount: '+${formatRupiah((income['amount'] as num?) ?? 0)}',
                   amountColor: NaraColors.success,
+                  onSwipeStartToEnd: originalIndex >= 0
+                      ? () => _showEditIncomeDialog(
+                            context: context,
+                            provider: provider,
+                            index: originalIndex,
+                          )
+                      : null,
+                  onSwipeEndToStart: originalIndex >= 0
+                      ? () => _confirmDeleteHistoryItem(
+                            context: context,
+                            provider: provider,
+                            type: _HistoryDeleteType.income,
+                            index: originalIndex,
+                          )
+                      : null,
                   onDelete: originalIndex >= 0
                       ? () => _confirmDeleteHistoryItem(
                             context: context,
@@ -732,105 +812,124 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  tr('Tipe', 'Type'),
-                  style: NaraTextStyles.caption.copyWith(
-                    color: NaraColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Row(
                   children: [
-                    _FilterChip(
-                      label: tr('Semua', 'All'),
-                      isSelected: _debtTypeFilter == _DebtTypeFilter.all,
-                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.all),
+                    Expanded(
+                      child: Text(
+                        tr('Filter Utang/Piutang', 'Debt/Receivable Filter'),
+                        style: NaraTextStyles.label.copyWith(
+                          color: NaraColors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    _FilterChip(
-                      label: tr('Saya Berhutang', 'My Debts'),
-                      isSelected: _debtTypeFilter == _DebtTypeFilter.debt,
-                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.debt),
-                    ),
-                    _FilterChip(
-                      label: tr('Piutang Saya', 'My Receivables'),
-                      isSelected: _debtTypeFilter == _DebtTypeFilter.receivable,
-                      onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.receivable),
+                    TextButton(
+                      onPressed: () => setState(() => _debtFilterExpanded = !_debtFilterExpanded),
+                      child: Text(_debtFilterExpanded ? tr('Sembunyikan', 'Hide') : tr('Tampilkan', 'Show')),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  tr('Status', 'Status'),
-                  style: NaraTextStyles.caption.copyWith(
-                    color: NaraColors.textSecondary,
-                    fontWeight: FontWeight.w700,
+                if (_debtFilterExpanded) ...[
+                  Text(
+                    tr('Tipe', 'Type'),
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _FilterChip(
-                      label: '${tr('Semua', 'All')} ($statusAllCount)',
-                      isSelected: _debtFilter == _DebtFilter.all,
-                      onTap: () => setState(() => _debtFilter = _DebtFilter.all),
-                    ),
-                    _FilterChip(
-                      label: '${tr('Belum Lunas', 'Unpaid')} ($statusUnpaidCount)',
-                      isSelected: _debtFilter == _DebtFilter.unpaid,
-                      onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
-                    ),
-                    _FilterChip(
-                      label: '${tr('Lunas', 'Paid')} ($statusPaidCount)',
-                      isSelected: _debtFilter == _DebtFilter.paid,
-                      onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
-                    ),
-                    _FilterChip(
-                      label: '${tr('Overdue', 'Overdue')} ($statusOverdueCount)',
-                      isSelected: _debtFilter == _DebtFilter.overdue,
-                      onTap: () => setState(() => _debtFilter = _DebtFilter.overdue),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  tr('Jatuh Tempo', 'Due Date'),
-                  style: NaraTextStyles.caption.copyWith(
-                    color: NaraColors.textSecondary,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _FilterChip(
+                        label: tr('Semua', 'All'),
+                        isSelected: _debtTypeFilter == _DebtTypeFilter.all,
+                        onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.all),
+                      ),
+                      _FilterChip(
+                        label: tr('Saya Berhutang', 'My Debts'),
+                        isSelected: _debtTypeFilter == _DebtTypeFilter.debt,
+                        onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.debt),
+                      ),
+                      _FilterChip(
+                        label: tr('Piutang Saya', 'My Receivables'),
+                        isSelected: _debtTypeFilter == _DebtTypeFilter.receivable,
+                        onTap: () => setState(() => _debtTypeFilter = _DebtTypeFilter.receivable),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _FilterChip(
-                      label: tr('Semua', 'All'),
-                      isSelected: _debtDueFilter == _DebtDueFilter.all,
-                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.all),
+                  const SizedBox(height: 12),
+                  Text(
+                    tr('Status', 'Status'),
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                      fontWeight: FontWeight.w700,
                     ),
-                    _FilterChip(
-                      label: tr('Hari ini', 'Today'),
-                      isSelected: _debtDueFilter == _DebtDueFilter.today,
-                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.today),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _FilterChip(
+                        label: '${tr('Semua', 'All')} ($statusAllCount)',
+                        isSelected: _debtFilter == _DebtFilter.all,
+                        onTap: () => setState(() => _debtFilter = _DebtFilter.all),
+                      ),
+                      _FilterChip(
+                        label: '${tr('Belum Lunas', 'Unpaid')} ($statusUnpaidCount)',
+                        isSelected: _debtFilter == _DebtFilter.unpaid,
+                        onTap: () => setState(() => _debtFilter = _DebtFilter.unpaid),
+                      ),
+                      _FilterChip(
+                        label: '${tr('Lunas', 'Paid')} ($statusPaidCount)',
+                        isSelected: _debtFilter == _DebtFilter.paid,
+                        onTap: () => setState(() => _debtFilter = _DebtFilter.paid),
+                      ),
+                      _FilterChip(
+                        label: '${tr('Overdue', 'Overdue')} ($statusOverdueCount)',
+                        isSelected: _debtFilter == _DebtFilter.overdue,
+                        onTap: () => setState(() => _debtFilter = _DebtFilter.overdue),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    tr('Jatuh Tempo', 'Due Date'),
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                      fontWeight: FontWeight.w700,
                     ),
-                    _FilterChip(
-                      label: tr('7 hari', '7 days'),
-                      isSelected: _debtDueFilter == _DebtDueFilter.next7Days,
-                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.next7Days),
-                    ),
-                    _FilterChip(
-                      label: tr('Overdue', 'Overdue'),
-                      isSelected: _debtDueFilter == _DebtDueFilter.overdue,
-                      onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.overdue),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _FilterChip(
+                        label: tr('Semua', 'All'),
+                        isSelected: _debtDueFilter == _DebtDueFilter.all,
+                        onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.all),
+                      ),
+                      _FilterChip(
+                        label: tr('Hari ini', 'Today'),
+                        isSelected: _debtDueFilter == _DebtDueFilter.today,
+                        onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.today),
+                      ),
+                      _FilterChip(
+                        label: tr('7 hari', '7 days'),
+                        isSelected: _debtDueFilter == _DebtDueFilter.next7Days,
+                        onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.next7Days),
+                      ),
+                      _FilterChip(
+                        label: tr('Overdue', 'Overdue'),
+                        isSelected: _debtDueFilter == _DebtDueFilter.overdue,
+                        onTap: () => setState(() => _debtDueFilter = _DebtDueFilter.overdue),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -872,6 +971,21 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               ),
             ),
           if (overdueDebt.isNotEmpty) SizedBox(height: isCompact ? 16 : 20),
+          if (provider.transactionSwipeEnabled) ...[
+            Row(
+              children: [
+                Icon(Icons.swipe_rounded, size: 14, color: NaraColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    I18n.t(context, 'transaction_swipe_actions_subtitle'),
+                    style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           if (filteredDebts.isEmpty)
             NaraCard(
               padding: EdgeInsets.all(isCompact ? 16 : 20),
@@ -901,7 +1015,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               final hasH1Schedule = h1ScheduledAt != null;
               final hasH0Schedule = h0ScheduledAt != null;
 
-              return NaraCard(
+              final debtCard = NaraCard(
                 padding: EdgeInsets.all(isCompact ? 16 : 20),
                 margin: const EdgeInsets.only(bottom: 16),
                 borderRadius: NaraRadius.lg,
@@ -941,6 +1055,88 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                           label: isPaid ? tr('Lunas', 'Paid') : tr('Belum Lunas', 'Unpaid'),
                           color: isPaid ? NaraColors.success : NaraColors.textHint,
                         ),
+                        PopupMenuButton<String>(
+                          tooltip: tr('Aksi lainnya', 'More actions'),
+                          onSelected: (value) async {
+                            final currentIndex = _findDebtIndexById(provider, debtId);
+                            if (currentIndex < 0) return;
+                            if (value == 'edit') {
+                              await _showEditDebtDialog(context: context, provider: provider, index: currentIndex);
+                              return;
+                            }
+                            if (value == 'delete') {
+                              await _confirmDeleteHistoryItem(
+                                context: context,
+                                provider: provider,
+                                type: _HistoryDeleteType.debt,
+                                index: currentIndex,
+                              );
+                              return;
+                            }
+                            if (value == 'remind_now') {
+                              final ok = await provider.sendDebtReminderById(debtId);
+                              if (!context.mounted) return;
+                              showAppSnackBar(
+                                context,
+                                content: Text(
+                                  ok ? tr('Pengingat dikirim.', 'Reminder sent.') : tr('Gagal kirim pengingat.', 'Failed to send reminder.'),
+                                  style: NaraTextStyles.body,
+                                ),
+                              );
+                              return;
+                            }
+                            if (value == 'toggle_h1') {
+                              final ok = hasH1Schedule
+                                  ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 1)
+                                  : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 1);
+                              if (!context.mounted) return;
+                              showAppSnackBar(
+                                context,
+                                content: Text(
+                                  ok
+                                      ? (hasH1Schedule
+                                          ? tr('Pengingat H-1 dibatalkan.', 'D-1 reminder canceled.')
+                                          : tr('Pengingat H-1 dijadwalkan.', 'D-1 reminder scheduled.'))
+                                      : tr('Gagal memproses H-1.', 'Failed to process D-1.'),
+                                  style: NaraTextStyles.body,
+                                ),
+                              );
+                              return;
+                            }
+                            if (value == 'toggle_h0') {
+                              final ok = hasH0Schedule
+                                  ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 0)
+                                  : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 0);
+                              if (!context.mounted) return;
+                              showAppSnackBar(
+                                context,
+                                content: Text(
+                                  ok
+                                      ? (hasH0Schedule
+                                          ? tr('Pengingat H-0 dibatalkan.', 'D-0 reminder canceled.')
+                                          : tr('Pengingat H-0 dijadwalkan.', 'D-0 reminder scheduled.'))
+                                      : tr('Gagal memproses H-0.', 'Failed to process D-0.'),
+                                  style: NaraTextStyles.body,
+                                ),
+                              );
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(value: 'edit', child: Text(tr('Edit Data', 'Edit Data'))),
+                            PopupMenuItem(value: 'delete', child: Text(tr('Hapus', 'Delete'))),
+                            if (!isPaid) ...[
+                              PopupMenuItem(value: 'remind_now', child: Text(tr('Ingatkan lagi', 'Remind again'))),
+                              PopupMenuItem(
+                                value: 'toggle_h1',
+                                child: Text(hasH1Schedule ? tr('Batalkan H-1', 'Cancel D-1') : tr('Ingatkan H-1', 'Remind D-1')),
+                              ),
+                              PopupMenuItem(
+                                value: 'toggle_h0',
+                                child: Text(hasH0Schedule ? tr('Batalkan H-0', 'Cancel D-0') : tr('Ingatkan H-0', 'Remind D-0')),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -968,31 +1164,6 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       ),
                     ),
                     const SizedBox(height: 20),
-                    _ActionButton(
-                      label: tr('Edit Data', 'Edit Data'),
-                      onTap: () => _showEditDebtDialog(
-                        context: context,
-                        provider: provider,
-                        index: originalIndex,
-                      ),
-                      color: NaraColors.surfaceCard,
-                      textColor: NaraColors.primary,
-                      borderColor: NaraColors.primary.withValues(alpha: 0.35),
-                    ),
-                    const SizedBox(height: 12),
-                    _ActionButton(
-                      label: tr('Hapus', 'Delete'),
-                      onTap: () => _confirmDeleteHistoryItem(
-                        context: context,
-                        provider: provider,
-                        type: _HistoryDeleteType.debt,
-                        index: originalIndex,
-                      ),
-                      color: NaraColors.surfaceCard,
-                      textColor: NaraColors.danger,
-                      borderColor: NaraColors.danger.withValues(alpha: 0.35),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1003,7 +1174,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                 : () => _showPartialPaymentDialog(
                                       context: context,
                                       provider: provider,
-                                      debtIndex: originalIndex,
+                                      debtId: debtId,
                                       remainingAmount: remainingAmount,
                                     ),
                             color: NaraColors.surfaceCard,
@@ -1018,7 +1189,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             onTap: isPaid
                                 ? () {}
                                 : () {
-                                    provider.markDebtAsPaid(originalIndex);
+                                    provider.markDebtAsPaidById(debtId);
                                     showAppSnackBar(
                                       context,
                                       content: Text(
@@ -1035,80 +1206,6 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       ],
                     ),
                     if (!isPaid) ...[
-                      const SizedBox(height: 12),
-                      _ActionButton(
-                        label: tr('Ingatkan lagi', 'Remind again'),
-                        onTap: () async {
-                          final ok = await provider.sendDebtReminderById(debtId);
-                          if (!mounted) return;
-                          showAppSnackBar(
-                            context,
-                            content: Text(
-                              ok ? tr('Pengingat dikirim.', 'Reminder sent.') : tr('Gagal kirim pengingat.', 'Failed to send reminder.'),
-                              style: NaraTextStyles.body,
-                            ),
-                          );
-                        },
-                        color: NaraColors.surfaceCard,
-                        textColor: NaraColors.primary,
-                        borderColor: NaraColors.primary.withValues(alpha: 0.35),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ActionButton(
-                              label: hasH1Schedule ? tr('Batalkan H-1', 'Cancel D-1') : tr('Ingatkan H-1', 'Remind D-1'),
-                              onTap: () async {
-                                final ok = hasH1Schedule
-                                    ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 1)
-                                    : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 1);
-                                if (!mounted) return;
-                                showAppSnackBar(
-                                  context,
-                                  content: Text(
-                                    ok
-                                        ? (hasH1Schedule
-                                            ? tr('Pengingat H-1 dibatalkan.', 'D-1 reminder canceled.')
-                                            : tr('Pengingat H-1 dijadwalkan.', 'D-1 reminder scheduled.'))
-                                        : tr('Gagal memproses H-1.', 'Failed to process D-1.'),
-                                    style: NaraTextStyles.body,
-                                  ),
-                                );
-                              },
-                              color: NaraColors.surfaceCard,
-                              textColor: NaraColors.primary,
-                              borderColor: NaraColors.primary.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _ActionButton(
-                              label: hasH0Schedule ? tr('Batalkan H-0', 'Cancel D-0') : tr('Ingatkan H-0', 'Remind D-0'),
-                              onTap: () async {
-                                final ok = hasH0Schedule
-                                    ? await provider.cancelDebtReminderById(debtId, daysBeforeDue: 0)
-                                    : await provider.scheduleDebtReminderById(debtId, daysBeforeDue: 0);
-                                if (!mounted) return;
-                                showAppSnackBar(
-                                  context,
-                                  content: Text(
-                                    ok
-                                        ? (hasH0Schedule
-                                            ? tr('Pengingat H-0 dibatalkan.', 'D-0 reminder canceled.')
-                                            : tr('Pengingat H-0 dijadwalkan.', 'D-0 reminder scheduled.'))
-                                        : tr('Gagal memproses H-0.', 'Failed to process D-0.'),
-                                    style: NaraTextStyles.body,
-                                  ),
-                                );
-                              },
-                              color: NaraColors.surfaceCard,
-                              textColor: NaraColors.primary,
-                              borderColor: NaraColors.primary.withValues(alpha: 0.35),
-                            ),
-                          ),
-                        ],
-                      ),
                       const SizedBox(height: 6),
                       Text(
                         _debtReminderScheduleLabel(h1ScheduledAt: h1ScheduledAt, h0ScheduledAt: h0ScheduledAt),
@@ -1117,6 +1214,47 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                     ],
                   ],
                 ),
+              );
+
+              if (!provider.transactionSwipeEnabled) {
+                return debtCard;
+              }
+
+              return Dismissible(
+                key: ValueKey('debt-$debtId-${debt['title'] ?? ''}'),
+                direction: DismissDirection.horizontal,
+                background: _SwipeActionBackground(
+                  icon: Icons.edit_rounded,
+                  label: tr('Edit Data', 'Edit Data'),
+                  color: NaraColors.primary,
+                  alignment: Alignment.centerLeft,
+                ),
+                secondaryBackground: _SwipeActionBackground(
+                  icon: Icons.delete_outline_rounded,
+                  label: tr('Hapus', 'Delete'),
+                  color: NaraColors.danger,
+                  alignment: Alignment.centerRight,
+                ),
+                confirmDismiss: (direction) async {
+                  final currentIndex = _findDebtIndexById(provider, debtId);
+                  if (currentIndex < 0) return false;
+                  if (direction == DismissDirection.startToEnd) {
+                    await _showEditDebtDialog(
+                      context: context,
+                      provider: provider,
+                      index: currentIndex,
+                    );
+                  } else if (direction == DismissDirection.endToStart) {
+                    await _confirmDeleteHistoryItem(
+                      context: context,
+                      provider: provider,
+                      type: _HistoryDeleteType.debt,
+                      index: currentIndex,
+                    );
+                  }
+                  return false;
+                },
+                child: debtCard,
               );
             }),
           const SizedBox(height: 72),
@@ -1669,10 +1807,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     return months[month - 1];
   }
 
+  int _findDebtIndexById(AppProvider provider, int debtId) {
+    return provider.debts.indexWhere((debt) => (debt['debtId'] as int?) == debtId);
+  }
+
   void _showPartialPaymentDialog({
     required BuildContext context,
     required AppProvider provider,
-    required int debtIndex,
+    required int debtId,
     required int remainingAmount,
   }) {
     final isEnglish = provider.language == 'English';
@@ -1762,7 +1904,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             context: context,
                             dialogContext: dialogContext,
                             provider: provider,
-                            debtIndex: debtIndex,
+                            debtId: debtId,
                             paymentAmount: _parseAmountInput(amountController.text),
                             amountController: amountController,
                           );
@@ -1852,7 +1994,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required BuildContext context,
     required BuildContext dialogContext,
     required AppProvider provider,
-    required int debtIndex,
+    required int debtId,
     required int paymentAmount,
     required TextEditingController amountController,
   }) {
@@ -1904,7 +2046,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 }
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
-                  provider.updateDebtPayment(debtIndex, paymentAmount);
+                  provider.updateDebtPaymentById(debtId, paymentAmount);
                   showAppSnackBar(
                     context,
                     backgroundColor: NaraColors.primary,
@@ -2472,6 +2614,8 @@ class _CategoryLegendItem extends StatelessWidget {
 }
 
 class _TransactionItem extends StatelessWidget {
+  final Key itemKey;
+  final bool swipeEnabled;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -2479,8 +2623,12 @@ class _TransactionItem extends StatelessWidget {
   final Color amountColor;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onSwipeStartToEnd;
+  final VoidCallback? onSwipeEndToStart;
 
   const _TransactionItem({
+    required this.itemKey,
+    required this.swipeEnabled,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -2488,11 +2636,13 @@ class _TransactionItem extends StatelessWidget {
     required this.amountColor,
     this.onTap,
     this.onDelete,
+    this.onSwipeStartToEnd,
+    this.onSwipeEndToStart,
   });
 
   @override
   Widget build(BuildContext context) {
-    return NaraCard(
+    final card = NaraCard(
       onTap: onTap,
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 12),
@@ -2532,14 +2682,78 @@ class _TransactionItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: NaraTextStyles.label.copyWith(color: amountColor, fontWeight: FontWeight.bold),
           ),
-          if (onDelete != null) ...[
+        ],
+      ),
+    );
+
+    if (!swipeEnabled) {
+      return card;
+    }
+
+    return Dismissible(
+      key: itemKey,
+      direction: DismissDirection.horizontal,
+      background: const _SwipeActionBackground(
+        icon: Icons.edit_rounded,
+        label: 'Edit',
+        color: NaraColors.primary,
+        alignment: Alignment.centerLeft,
+      ),
+      secondaryBackground: const _SwipeActionBackground(
+        icon: Icons.delete_outline_rounded,
+        label: 'Hapus',
+        color: NaraColors.danger,
+        alignment: Alignment.centerRight,
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onSwipeStartToEnd?.call();
+        } else if (direction == DismissDirection.endToStart) {
+          onSwipeEndToStart?.call();
+        }
+        return false;
+      },
+      child: card,
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLeft = alignment == Alignment.centerLeft;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.symmetric(horizontal: isLeft ? 16 : 20),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(NaraRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      alignment: alignment,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!isLeft) ...[
+            Text(label, style: NaraTextStyles.label.copyWith(color: color, fontWeight: FontWeight.w700)),
             const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Hapus',
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline_rounded, color: NaraColors.danger, size: 20),
-              visualDensity: VisualDensity.compact,
-            ),
+          ],
+          Icon(icon, color: color, size: 20),
+          if (isLeft) ...[
+            const SizedBox(width: 8),
+            Text(label, style: NaraTextStyles.label.copyWith(color: color, fontWeight: FontWeight.w700)),
           ],
         ],
       ),

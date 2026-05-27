@@ -67,6 +67,7 @@ class AppProvider extends ChangeNotifier {
   static const String _reminderNotifsEnabledKey = 'notif_reminder_enabled';
   static const String _debtNotifsEnabledKey = 'notif_debt_enabled';
   static const String _transactionNotifsEnabledKey = 'notif_transaction_enabled';
+  static const String _transactionSwipeEnabledKey = 'transaction_swipe_enabled';
   static const String _monthlyBudgetKey = 'monthly_budget';
 
   bool _isDarkMode = false;
@@ -80,6 +81,7 @@ class AppProvider extends ChangeNotifier {
   bool _reminderNotificationsEnabled = true;
   bool _debtNotificationsEnabled = true;
   bool _transactionNotificationsEnabled = true;
+  bool _transactionSwipeEnabled = true;
   int _monthlyBudget = 0;
   int _notificationFeedVersion = 0;
   
@@ -99,6 +101,7 @@ class AppProvider extends ChangeNotifier {
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
   bool get debtNotificationsEnabled => _debtNotificationsEnabled;
   bool get transactionNotificationsEnabled => _transactionNotificationsEnabled;
+  bool get transactionSwipeEnabled => _transactionSwipeEnabled;
   int get monthlyBudget => _monthlyBudget;
   int get notificationFeedVersion => _notificationFeedVersion;
   
@@ -227,6 +230,13 @@ class AppProvider extends ChangeNotifier {
     _transactionNotificationsEnabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_transactionNotifsEnabledKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setTransactionSwipeEnabled(bool value) async {
+    _transactionSwipeEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_transactionSwipeEnabledKey, value);
     notifyListeners();
   }
 
@@ -482,12 +492,12 @@ class AppProvider extends ChangeNotifier {
     if (type == 'expense' || type == 'income') {
       final title = (action['title'] as String?)?.trim() ?? '';
       final amount = (action['amount'] as int?) ?? 0;
-      if (title.isEmpty) {
+      if (title.isEmpty || _isWeakVoiceTitle(title)) {
         return {
           'isValid': false,
           'message': isEnglish
-              ? 'Title cannot be empty.'
-              : 'Judul tidak boleh kosong.',
+              ? 'Please mention a specific title for this transaction.'
+              : 'Sebutkan judul transaksi yang lebih spesifik.',
         };
       }
       if (amount <= 0) {
@@ -921,6 +931,13 @@ class AppProvider extends ChangeNotifier {
         .replaceAll('pemasukan', '')
         .replaceAll('expense', '')
         .replaceAll('income', '')
+        .replaceAll('saya', '')
+        .replaceAll('aku', '')
+        .replaceAll('gue', '')
+        .replaceAll('gw', '')
+        .replaceAll('sya', '')
+        .replaceAll('me', '')
+        .replaceAll('my', '')
         .replaceAll('beli', '')
         .replaceAll('bayar', '')
         .replaceAll('untuk', '')
@@ -939,6 +956,31 @@ class AppProvider extends ChangeNotifier {
         .split(RegExp(r'\s+'))
         .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
+  }
+
+  bool _isWeakVoiceTitle(String title) {
+    final normalized = title.trim().toLowerCase();
+    if (normalized.isEmpty) return true;
+    const blocked = <String>{
+      'saya',
+      'aku',
+      'gue',
+      'gw',
+      'me',
+      'my',
+      'i',
+      'pengeluaran',
+      'pemasukan',
+      'expense',
+      'income',
+      'lainnya',
+      'others',
+      'other',
+      '-',
+    };
+    if (blocked.contains(normalized)) return true;
+    if (normalized.length <= 2) return true;
+    return false;
   }
 
   String _extractReminderTitle(String text) {
@@ -1085,7 +1127,7 @@ class AppProvider extends ChangeNotifier {
     if (type == 'expense' || type == 'income') {
       final title = (action['title'] as String?)?.trim() ?? '';
       final amount = (action['amount'] as int?) ?? 0;
-      if (title.isEmpty) return '${type}_title';
+      if (title.isEmpty || _isWeakVoiceTitle(title)) return '${type}_title';
       if (amount <= 0) return '${type}_amount';
       return null;
     }
@@ -1184,10 +1226,16 @@ class AppProvider extends ChangeNotifier {
         break;
       case 'expense_title':
       case 'income_title':
-        next['title'] = _extractVoiceTitle(
+        final extractedTitle = _extractVoiceTitle(
           text,
           fallback: field.startsWith('expense') ? 'Pengeluaran' : 'Pemasukan',
         );
+        next['title'] = extractedTitle;
+        if (field == 'expense_title') {
+          next['category'] = _detectExpenseCategory(text);
+        } else {
+          next['category'] = _detectIncomeCategory(text);
+        }
         break;
       case 'expense_amount':
       case 'income_amount':
@@ -2428,6 +2476,7 @@ class AppProvider extends ChangeNotifier {
       _reminderNotificationsEnabled = prefs.getBool(_reminderNotifsEnabledKey) ?? true;
       _debtNotificationsEnabled = prefs.getBool(_debtNotifsEnabledKey) ?? true;
       _transactionNotificationsEnabled = prefs.getBool(_transactionNotifsEnabledKey) ?? true;
+      _transactionSwipeEnabled = prefs.getBool(_transactionSwipeEnabledKey) ?? true;
       _monthlyBudget = prefs.getInt(_monthlyBudgetKey) ?? 0;
       await _loadJsonList(_expensesKey, _expenses);
       await _loadJsonList(_incomesKey, _incomes);

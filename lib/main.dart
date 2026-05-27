@@ -17,6 +17,7 @@ import 'screens/reminder/create_reminder_screen.dart';
 import 'screens/notifications/notification_center_screen.dart';
 import 'screens/report/report_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/history/history_screen.dart';
 import 'providers/app_provider.dart';
 
 Route<dynamic> _buildRoute(RouteSettings settings, WidgetBuilder builder) {
@@ -110,6 +111,20 @@ class NaraApp extends StatelessWidget {
           themeMode: provider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const SplashScreen(),
           onGenerateRoute: (settings) {
+            if (settings.name == '/history') {
+              final args = settings.arguments;
+              var initialTab = 0;
+              if (args is Map<String, dynamic>) {
+                final tab = args['tab'];
+                if (tab == 'income') initialTab = 1;
+                if (tab == 'debt') initialTab = 2;
+              }
+              return _buildRoute(
+                settings,
+                (_) => HistoryScreen(initialTab: initialTab),
+              );
+            }
+
             final routes = <String, WidgetBuilder>{
               '/onboarding': (_) => const OnboardingScreen(),
               '/home': (_) => const HomeScreen(),
@@ -121,6 +136,7 @@ class NaraApp extends StatelessWidget {
               '/notifications': (_) => const NotificationCenterScreen(),
               '/report': (_) => const ReportScreen(),
               '/settings': (_) => const SettingsScreen(),
+              '/history': (_) => const HistoryScreen(),
             };
 
             final builder = routes[settings.name];
