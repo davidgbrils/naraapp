@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../components/index.dart';
 import '../../core/formatters.dart';
 import '../../core/i18n.dart';
+import '../../core/snackbar_utils.dart';
 import '../../core/theme.dart';
 import '../../providers/app_provider.dart';
 
@@ -365,30 +366,27 @@ class _HistoryList extends StatelessWidget {
     final snapshot = Map<String, dynamic>.from(payload);
     _deleteItem(provider, mode, index);
     final isEnglish = provider.language == 'English';
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            isEnglish ? 'Data deleted.' : 'Data dihapus.',
-          ),
-          action: SnackBarAction(
-            label: isEnglish ? 'Undo' : 'Urungkan',
-            textColor: NaraColors.primary,
-            onPressed: () {
-              if (mode == _HistoryType.expense) {
-                provider.restoreExpenseAt(index, snapshot);
-              } else if (mode == _HistoryType.income) {
-                provider.restoreIncomeAt(index, snapshot);
-              } else {
-                provider.restoreDebtAt(index, snapshot);
-              }
-            },
-          ),
-        ),
-      );
+    showDeleteSnackBarWithDelayedUndo(
+      context,
+      deletedContent: Text(
+        isEnglish ? 'Data deleted.' : 'Data dihapus.',
+      ),
+      undoContent: Text(
+        isEnglish ? 'Undo delete?' : 'Urungkan penghapusan?',
+      ),
+      undoLabel: isEnglish ? 'Undo' : 'Urungkan',
+      undoTextColor: NaraColors.primary,
+      undoDuration: const Duration(seconds: 5),
+      onUndo: () {
+        if (mode == _HistoryType.expense) {
+          provider.restoreExpenseAt(index, snapshot);
+        } else if (mode == _HistoryType.income) {
+          provider.restoreIncomeAt(index, snapshot);
+        } else {
+          provider.restoreDebtAt(index, snapshot);
+        }
+      },
+    );
   }
 
   void _deleteItem(AppProvider provider, _HistoryType mode, int index) {

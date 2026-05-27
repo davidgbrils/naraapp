@@ -30,6 +30,8 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
     {'name': 'Investasi', 'icon': Icons.trending_up_rounded, 'color': NaraColors.accentPurple},
     {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded, 'color': NaraColors.textSecondary},
   ];
+  static const Color _requiredFieldFill = Color(0xFFF5FCF7);
+  static const Color _requiredFieldBorder = Color(0xFFBFE8CD);
 
   @override
   void dispose() {
@@ -150,23 +152,24 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
                 prefixText: 'Rp ',
                 prefixStyle: NaraTextStyles.amountLarge.copyWith(color: NaraColors.success),
                 filled: true,
-                fillColor: NaraColors.surfaceCard,
+                fillColor: _requiredFieldFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: amountInvalid ? NaraColors.danger : Colors.transparent,
+                    color: amountInvalid ? NaraColors.danger : _requiredFieldBorder,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: amountInvalid ? NaraColors.danger : Colors.transparent,
+                    color: amountInvalid ? NaraColors.danger : _requiredFieldBorder,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: amountInvalid ? NaraColors.danger : NaraColors.success.withValues(alpha: 0.45),
+                    color: amountInvalid ? NaraColors.danger : NaraColors.success,
+                    width: 1.8,
                   ),
                 ),
               ),
@@ -189,23 +192,24 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
               decoration: InputDecoration(
                 hintText: I18n.t(context, 'income_hint'),
                 filled: true,
-                fillColor: NaraColors.surfaceCard,
+                fillColor: _requiredFieldFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: titleInvalid ? NaraColors.danger : Colors.transparent,
+                    color: titleInvalid ? NaraColors.danger : _requiredFieldBorder,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: titleInvalid ? NaraColors.danger : Colors.transparent,
+                    color: titleInvalid ? NaraColors.danger : _requiredFieldBorder,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: titleInvalid ? NaraColors.danger : NaraColors.success.withValues(alpha: 0.45),
+                    color: titleInvalid ? NaraColors.danger : NaraColors.success,
+                    width: 1.8,
                   ),
                 ),
               ),
@@ -300,11 +304,18 @@ class _RequiredLabel extends StatelessWidget {
           style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
         ),
         const SizedBox(width: 6),
-        Text(
-          '*Wajib',
-          style: NaraTextStyles.caption.copyWith(
-            color: NaraColors.danger,
-            fontWeight: FontWeight.w700,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: NaraColors.danger.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(NaraRadius.pill),
+          ),
+          child: Text(
+            '*Wajib',
+            style: NaraTextStyles.caption.copyWith(
+              color: NaraColors.danger,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],

@@ -1416,25 +1416,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       provider.removeDebtAt(index);
     }
 
-    showAppSnackBar(
+    showDeleteSnackBarWithDelayedUndo(
       context,
-      duration: const Duration(seconds: 3),
-      content: Text(
+      deletedContent: Text(
         isEnglish ? 'Data deleted.' : 'Data dihapus.',
         style: NaraTextStyles.body,
       ),
-      action: SnackBarAction(
-        label: isEnglish ? 'Undo' : 'Urungkan',
-        onPressed: () {
-          if (type == _HistoryDeleteType.expense) {
-            provider.restoreExpenseAt(index, payload);
-          } else if (type == _HistoryDeleteType.income) {
-            provider.restoreIncomeAt(index, payload);
-          } else {
-            provider.restoreDebtAt(index, payload);
-          }
-        },
+      undoContent: Text(
+        isEnglish ? 'Undo delete?' : 'Urungkan penghapusan?',
+        style: NaraTextStyles.body,
       ),
+      undoLabel: isEnglish ? 'Undo' : 'Urungkan',
+      undoTextColor: NaraColors.primary,
+      undoDuration: const Duration(seconds: 5),
+      onUndo: () {
+        if (type == _HistoryDeleteType.expense) {
+          provider.restoreExpenseAt(index, payload);
+        } else if (type == _HistoryDeleteType.income) {
+          provider.restoreIncomeAt(index, payload);
+        } else {
+          provider.restoreDebtAt(index, payload);
+        }
+      },
     );
   }
 

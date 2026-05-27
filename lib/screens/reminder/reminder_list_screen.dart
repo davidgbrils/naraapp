@@ -442,11 +442,28 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: Text(
-                                    item.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: NaraTextStyles.bodySmall,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: NaraTextStyles.bodySmall,
+                                      ),
+                                      if ((item.timeLabel ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          item.timeLabel!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: NaraTextStyles.caption.copyWith(
+                                            color: NaraColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ],
@@ -520,6 +537,7 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
           title: (reminder['title'] as String?)?.trim().isNotEmpty == true
               ? (reminder['title'] as String).trim()
               : 'Reminder',
+          timeLabel: _formatClock(scheduledAt),
         ),
       );
     }
@@ -601,11 +619,19 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
 class _PlanningCalendarEntry {
   final String kind;
   final String title;
+  final String? timeLabel;
 
   const _PlanningCalendarEntry({
     required this.kind,
     required this.title,
+    this.timeLabel,
   });
+}
+
+String _formatClock(DateTime dateTime) {
+  final hh = dateTime.hour.toString().padLeft(2, '0');
+  final mm = dateTime.minute.toString().padLeft(2, '0');
+  return '$hh:$mm';
 }
 
 class _ReminderHeader extends StatelessWidget {

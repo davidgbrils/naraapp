@@ -137,10 +137,23 @@ class MainActivity : FlutterActivity() {
 
   private fun cancelPopupAlarm(id: Int) {
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    alarmManager.cancel(popupPendingIntent(id))
+    alarmManager.cancel(popupBroadcastPendingIntent(id))
+    alarmManager.cancel(popupActivityPendingIntent(id))
   }
 
   private fun popupPendingIntent(
+    id: Int,
+    mode: String = "Loud Alarm",
+    title: String = "Reminder",
+    body: String = "Ada pengingat baru untukmu."
+  ): PendingIntent {
+    if (mode == "Loud Alarm" || mode == "Fullscreen Alert" || mode == "Fake Call") {
+      return popupActivityPendingIntent(id, mode, title, body)
+    }
+    return popupBroadcastPendingIntent(id, mode, title, body)
+  }
+
+  private fun popupBroadcastPendingIntent(
     id: Int,
     mode: String = "Loud Alarm",
     title: String = "Reminder",
@@ -155,6 +168,26 @@ class MainActivity : FlutterActivity() {
     }
     val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     return PendingIntent.getBroadcast(this, id, intent, flags)
+  }
+
+  private fun popupActivityPendingIntent(
+    id: Int,
+    mode: String = "Loud Alarm",
+    title: String = "Reminder",
+    body: String = "Ada pengingat baru untukmu."
+  ): PendingIntent {
+    val intent = Intent(this, AlarmAlertActivity::class.java).apply {
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+          Intent.FLAG_ACTIVITY_SINGLE_TOP or
+          Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra("from_popup_alarm", true)
+      putExtra("reminder_id", id)
+      putExtra("mode", mode)
+      putExtra("title", title)
+      putExtra("body", body)
+    }
+    val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    return PendingIntent.getActivity(this, id, intent, flags)
   }
 
   private fun relayPopupAlarmFromIntent(intent: Intent?) {

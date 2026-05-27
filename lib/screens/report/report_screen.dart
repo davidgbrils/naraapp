@@ -924,7 +924,7 @@ class _ReportScreenState extends State<ReportScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 72,
+        toolbarHeight: 86,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
@@ -939,11 +939,24 @@ class _ReportScreenState extends State<ReportScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
-            Text(
-              I18n.t(context, 'report_desc'),
-              style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                width: constraints.maxWidth,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    I18n.t(context, 'report_desc'),
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                      fontSize: isCompactWidth ? 10 : 11,
+                      height: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

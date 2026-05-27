@@ -36,22 +36,27 @@ class AlarmAlertActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-      setShowWhenLocked(true)
-      setTurnScreenOn(true)
-    }
-    reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
-    if (reminderId < 0) {
-      finish()
-      return
-    }
-    mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
-    title = intent?.getStringExtra("title") ?: "Reminder"
-    body = intent?.getStringExtra("body") ?: "Ada pengingat baru untukmu."
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+      }
+      reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
+      if (reminderId < 0) {
+        finish()
+        return
+      }
+      mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
+      title = intent?.getStringExtra("title") ?: "Reminder"
+      body = intent?.getStringExtra("body") ?: "Ada pengingat baru untukmu."
 
-    setContentView(buildContent())
-    startAlarmSound()
-    handler.postDelayed(autoSnoozeRunnable, autoSnoozeDelayMillis())
+      setContentView(buildContent())
+      startAlarmSound()
+      handler.postDelayed(autoSnoozeRunnable, autoSnoozeDelayMillis())
+    } catch (_: Exception) {
+      // Last-resort guard: avoid process crash on OEM-specific UI/runtime issues.
+      finish()
+    }
   }
 
   override fun onNewIntent(intent: Intent?) {
@@ -255,14 +260,17 @@ class AlarmAlertActivity : Activity() {
   private fun scheduleNativeSnooze(delayMillis: Long) {
     val triggerAt = System.currentTimeMillis() + delayMillis
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
-      action = "com.nara.app.POPUP_REMINDER_ALARM"
+    val intent = Intent(this, AlarmAlertActivity::class.java).apply {
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+          Intent.FLAG_ACTIVITY_SINGLE_TOP or
+          Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra("from_popup_alarm", true)
       putExtra("reminder_id", reminderId)
       putExtra("mode", mode)
       putExtra("title", title)
       putExtra("body", body)
     }
-    val pendingIntent = PendingIntent.getBroadcast(
+    val pendingIntent = PendingIntent.getActivity(
       this,
       reminderId,
       intent,
@@ -307,7 +315,8 @@ class AlarmAlertActivity : Activity() {
 
   private fun currentLanguageCode(): String {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-      resources.configuration.locales[0]?.language ?: "en"
+      val locales = resources.configuration.locales
+      if (locales.isEmpty) "en" else (locales[0]?.language ?: "en")
     } else {
       @Suppress("DEPRECATION")
       resources.configuration.locale?.language ?: "en"
