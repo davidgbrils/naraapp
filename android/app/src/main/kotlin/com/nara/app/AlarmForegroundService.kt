@@ -80,14 +80,14 @@ class AlarmForegroundService : Service() {
       .setContentIntent(fullScreenPendingIntent)
       .build()
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(
-        NOTIF_ID,
-        notification,
-        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-      )
-    } else {
+    try {
+      // Use the safest foreground start path across OEMs/API levels.
+      // Some devices crash when a specific foreground service type is declared
+      // without matching runtime/manifest expectations.
       startForeground(NOTIF_ID, notification)
+    } catch (_: Exception) {
+      stopSelfSafely()
+      return START_NOT_STICKY
     }
 
     try {

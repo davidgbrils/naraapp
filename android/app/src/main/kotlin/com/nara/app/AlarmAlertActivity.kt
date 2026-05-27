@@ -203,22 +203,26 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun startAlarmSound() {
-    val soundUri = if (mode == "Fake Call") {
-      RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-    } else {
-      RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+    try {
+      val soundUri = if (mode == "Fake Call") {
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+      } else {
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+      }
+      ringtone = RingtoneManager.getRingtone(this, soundUri)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        ringtone?.audioAttributes = AudioAttributes.Builder()
+          .setUsage(
+            if (mode == "Fake Call") AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+            else AudioAttributes.USAGE_ALARM
+          )
+          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+          .build()
+      }
+      ringtone?.play()
+    } catch (_: Exception) {
+      ringtone = null
     }
-    ringtone = RingtoneManager.getRingtone(this, soundUri)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      ringtone?.audioAttributes = AudioAttributes.Builder()
-        .setUsage(
-          if (mode == "Fake Call") AudioAttributes.USAGE_NOTIFICATION_RINGTONE
-          else AudioAttributes.USAGE_ALARM
-        )
-        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-        .build()
-    }
-    ringtone?.play()
   }
 
   private fun stopAlarmSound() {

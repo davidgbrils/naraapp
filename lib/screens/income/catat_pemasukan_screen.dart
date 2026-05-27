@@ -20,6 +20,7 @@ class CatatPemasukanScreen extends StatefulWidget {
 class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
+  bool _showValidationHint = false;
   String _selectedCategory = 'Gaji';
 
   final List<Map<String, dynamic>> _categories = [
@@ -42,6 +43,7 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
     final amount = parseRupiahInput(_amountController.text);
 
     if (title.isEmpty || amount <= 0) {
+      setState(() => _showValidationHint = true);
       showAppSnackBar(
         context,
         backgroundColor: NaraColors.surfaceWhite,
@@ -95,6 +97,8 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final amountInvalid = _showValidationHint && parseRupiahInput(_amountController.text) <= 0;
+    final titleInvalid = _showValidationHint && _titleController.text.trim().isEmpty;
     return Scaffold(
       backgroundColor: NaraColors.background,
       appBar: AppBar(
@@ -133,7 +137,7 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Amount input
-            Text(I18n.t(context, 'amount'), style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
+            _RequiredLabel(text: I18n.t(context, 'amount')),
             const SizedBox(height: NaraSpacing.sm),
             TextField(
               controller: _amountController,
@@ -147,13 +151,37 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
                 prefixStyle: NaraTextStyles.amountLarge.copyWith(color: NaraColors.success),
                 filled: true,
                 fillColor: NaraColors.surfaceCard,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(NaraRadius.lg), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: amountInvalid ? NaraColors.danger : Colors.transparent,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: amountInvalid ? NaraColors.danger : Colors.transparent,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: amountInvalid ? NaraColors.danger : NaraColors.success.withValues(alpha: 0.45),
+                  ),
+                ),
               ),
             ),
+            if (amountInvalid) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Nominal wajib diisi dan lebih dari 0',
+                style: NaraTextStyles.caption.copyWith(color: NaraColors.danger),
+              ),
+            ],
             const SizedBox(height: NaraSpacing.xl),
 
             // Title input
-            Text(I18n.t(context, 'description'), style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
+            _RequiredLabel(text: I18n.t(context, 'description')),
             const SizedBox(height: NaraSpacing.sm),
             TextField(
               controller: _titleController,
@@ -162,50 +190,81 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
                 hintText: I18n.t(context, 'income_hint'),
                 filled: true,
                 fillColor: NaraColors.surfaceCard,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(NaraRadius.lg), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: titleInvalid ? NaraColors.danger : Colors.transparent,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: titleInvalid ? NaraColors.danger : Colors.transparent,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide(
+                    color: titleInvalid ? NaraColors.danger : NaraColors.success.withValues(alpha: 0.45),
+                  ),
+                ),
               ),
             ),
+            if (titleInvalid) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Keterangan wajib diisi',
+                style: NaraTextStyles.caption.copyWith(color: NaraColors.danger),
+              ),
+            ],
             const SizedBox(height: NaraSpacing.xl),
 
             // Category selection
             Text(I18n.t(context, 'category'), style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
             const SizedBox(height: NaraSpacing.md),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: NaraSpacing.md,
-              crossAxisSpacing: NaraSpacing.md,
-              childAspectRatio: 1.2,
-              children: _categories.map((category) {
-                final isSelected = _selectedCategory == category['name'];
-                final color = category['color'] as Color;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedCategory = category['name']),
-                  child: NaraCard(
-                    borderRadius: NaraRadius.lg,
-                    backgroundColor: isSelected ? NaraColors.primaryLight : NaraColors.surfaceWhite,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          category['icon'],
-                          color: isSelected ? color : NaraColors.textSecondary,
-                          size: 28,
-                        ),
-                        const SizedBox(height: NaraSpacing.sm),
-                        Text(
-                          I18n.translateCategory(context, category['name'] as String),
-                          style: NaraTextStyles.label.copyWith(
-                            color: isSelected ? color : NaraColors.textSecondary,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _categories.map((category) {
+                  final isSelected = _selectedCategory == category['name'];
+                  final color = category['color'] as Color;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: NaraSpacing.sm),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedCategory = category['name']),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected ? NaraColors.primaryLight : NaraColors.surfaceWhite,
+                          borderRadius: BorderRadius.circular(NaraRadius.pill),
+                          border: Border.all(
+                            color: isSelected ? color.withValues(alpha: 0.6) : NaraColors.textHint.withValues(alpha: 0.25),
                           ),
-                          textAlign: TextAlign.center,
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              category['icon'],
+                              color: isSelected ? color : NaraColors.textSecondary,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              I18n.translateCategory(context, category['name'] as String),
+                              style: NaraTextStyles.caption.copyWith(
+                                color: isSelected ? color : NaraColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
 
             const SizedBox(height: NaraSpacing.xxxl),
@@ -223,6 +282,32 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RequiredLabel extends StatelessWidget {
+  final String text;
+
+  const _RequiredLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '*Wajib',
+          style: NaraTextStyles.caption.copyWith(
+            color: NaraColors.danger,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -134,28 +134,34 @@ class _HistoryScreenState extends State<HistoryScreen>
                 controller: _tabController,
                 children: [
                   _HistoryList(
+                    provider: provider,
                     items: provider.expenses,
                     emptyText: I18n.t(context, 'no_expense'),
                     amountPrefix: '-',
                     amountColor: NaraColors.danger,
                     period: _period,
                     mode: _HistoryType.expense,
+                    swipeEnabled: provider.transactionSwipeEnabled,
                   ),
                   _HistoryList(
+                    provider: provider,
                     items: provider.incomes,
                     emptyText: I18n.t(context, 'no_income'),
                     amountPrefix: '+',
                     amountColor: NaraColors.success,
                     period: _period,
                     mode: _HistoryType.income,
+                    swipeEnabled: provider.transactionSwipeEnabled,
                   ),
                   _HistoryList(
+                    provider: provider,
                     items: provider.debts,
                     emptyText: I18n.t(context, 'no_debt_filter'),
                     amountPrefix: '',
                     amountColor: NaraColors.primary,
                     period: _period,
                     mode: _HistoryType.debt,
+                    swipeEnabled: provider.transactionSwipeEnabled,
                   ),
                 ],
               ),
@@ -170,25 +176,28 @@ class _HistoryScreenState extends State<HistoryScreen>
 enum _HistoryType { expense, income, debt }
 
 class _HistoryList extends StatelessWidget {
+  final AppProvider provider;
   final List<Map<String, dynamic>> items;
   final String emptyText;
   final String amountPrefix;
   final Color amountColor;
   final _HistoryPeriod period;
   final _HistoryType mode;
+  final bool swipeEnabled;
 
   const _HistoryList({
+    required this.provider,
     required this.items,
     required this.emptyText,
     required this.amountPrefix,
     required this.amountColor,
     required this.period,
     required this.mode,
+    required this.swipeEnabled,
   });
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.read<AppProvider>();
     final filtered = items.where((item) => _isInPeriod(_createdAt(item), period)).toList()
       ..sort((a, b) => _createdAt(b).compareTo(_createdAt(a)));
 
@@ -300,6 +309,10 @@ class _HistoryList extends StatelessWidget {
           ),
         );
 
+        if (!swipeEnabled) {
+          return card;
+        }
+
         return Dismissible(
           key: ValueKey('history-${mode.name}-$sourceIndex-$title'),
           direction: DismissDirection.horizontal,
@@ -356,9 +369,14 @@ class _HistoryList extends StatelessWidget {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(isEnglish ? 'Data deleted.' : 'Data berhasil dihapus.'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            isEnglish ? 'Data deleted.' : 'Data dihapus.',
+          ),
           action: SnackBarAction(
             label: isEnglish ? 'Undo' : 'Urungkan',
+            textColor: NaraColors.primary,
             onPressed: () {
               if (mode == _HistoryType.expense) {
                 provider.restoreExpenseAt(index, snapshot);

@@ -472,7 +472,13 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                 enabled: true,
                 label: I18n.t(context, 'voice_button_semantics'),
                 child: GestureDetector(
-                  onTapDown: (_) async {
+                  onTap: () {
+                    // Prevent quick tap from triggering start+stop too fast.
+                    if (!provider.voiceBetaEnabled) {
+                      _showVoiceDisabledSnackBar(context);
+                    }
+                  },
+                  onLongPressStart: (_) async {
                     HapticFeedback.mediumImpact();
                     if (!provider.voiceBetaEnabled) {
                       _showVoiceDisabledSnackBar(context);
@@ -483,7 +489,7 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                     }
                     await provider.startListening();
                   },
-                  onTapUp: (_) async {
+                  onLongPressEnd: (_) async {
                     if (!provider.voiceBetaEnabled) return;
                     if (mounted) {
                       setState(() => _isHoldingToTalk = false);
@@ -491,7 +497,7 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                     HapticFeedback.selectionClick();
                     await provider.stopListening();
                   },
-                  onTapCancel: () async {
+                  onLongPressCancel: () async {
                     if (!provider.voiceBetaEnabled) return;
                     if (mounted) {
                       setState(() => _isHoldingToTalk = false);

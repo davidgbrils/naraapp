@@ -73,8 +73,9 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     );
     _selectedType = 'Notification';
     _isRoutineEnabled = false;
-    _isLinkedToNote = true;
+    _isLinkedToNote = false;
     _selectedWeekDays = {1, 2, 3, 4, 5};
+    _useDefaultSound = false;
 
     if (widget.editIndex != null) {
       final provider = context.read<AppProvider>();
@@ -334,10 +335,11 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                     ? 'Required field'
                     : 'Wajib diisi',
                 helperStyle: NaraTextStyles.bodySmall.copyWith(
-                  color: NaraColors.textSecondary,
+                  color: NaraColors.primary,
+                  fontWeight: FontWeight.w600,
                 ),
                 filled: true,
-                fillColor: NaraColors.surfaceCard,
+                fillColor: NaraColors.surfaceWhite,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: NaraSpacing.md,
                   vertical: NaraSpacing.md,
@@ -345,20 +347,22 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: NaraColors.textHint.withValues(alpha: 0.45),
+                    color: NaraColors.primary.withValues(alpha: 0.35),
+                    width: 1.2,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: BorderSide(
-                    color: NaraColors.textHint.withValues(alpha: 0.45),
+                    color: NaraColors.primary.withValues(alpha: 0.35),
+                    width: 1.2,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(NaraRadius.lg),
                   borderSide: const BorderSide(
                     color: NaraColors.primary,
-                    width: 1.6,
+                    width: 2,
                   ),
                 ),
               ),
@@ -624,9 +628,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     super.didChangeDependencies();
     if (_didInitLocalizedDefaults) return;
     _didInitLocalizedDefaults = true;
-    if (widget.editIndex == null && _noteController.text.isEmpty) {
-      _noteController.text = I18n.t(context, 'pay_electricity_bill');
-    }
+    // Keep note empty by default for new reminders.
   }
 
   @override

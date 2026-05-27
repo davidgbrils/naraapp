@@ -85,7 +85,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(tr('Keuangan', 'Finance'), style: NaraTextStyles.h3),
+              Text(tr('Keuangan', 'Finance'), style: NaraTextStyles.h2),
               const SizedBox(height: 2),
               Text(
                 tr('Ringkasan transaksi harian', 'Your daily transaction summary'),
@@ -104,10 +104,6 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               '/history',
               arguments: {'tab': 'expense'},
             ),
-          ),
-          NotificationBellButton(
-            iconColor: scheme.onSurface,
-            tooltip: tr('Lihat notifikasi', 'View notifications'),
           ),
           const SizedBox(width: 8),
         ],
@@ -1422,9 +1418,9 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     showAppSnackBar(
       context,
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 3),
       content: Text(
-        isEnglish ? 'Data deleted.' : 'Data berhasil dihapus.',
+        isEnglish ? 'Data deleted.' : 'Data dihapus.',
         style: NaraTextStyles.body,
       ),
       action: SnackBarAction(
@@ -1901,12 +1897,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                       ? () {
                           HapticFeedback.mediumImpact();
                           _confirmPaymentDialog(
-                            context: context,
+                            context: this.context,
                             dialogContext: dialogContext,
                             provider: provider,
                             debtId: debtId,
                             paymentAmount: _parseAmountInput(amountController.text),
-                            amountController: amountController,
                           );
                         }
                       : null,
@@ -1996,7 +1991,6 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required AppProvider provider,
     required int debtId,
     required int paymentAmount,
-    required TextEditingController amountController,
   }) {
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     showDialog<void>(
@@ -2040,28 +2034,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
             ElevatedButton(
               onPressed: () {
                 HapticFeedback.heavyImpact();
-                Navigator.of(confirmContext).pop();
-                if (Navigator.of(dialogContext).canPop()) {
+                if (confirmContext.mounted) {
+                  Navigator.of(confirmContext).pop();
+                }
+                if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
                   Navigator.of(dialogContext).pop();
                 }
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  provider.updateDebtPaymentById(debtId, paymentAmount);
-                  showAppSnackBar(
-                    context,
-                    backgroundColor: NaraColors.primary,
-                    content: Semantics(
-                      label: tr('Pembayaran berhasil', 'Payment successful'),
-                      child: Text(
-                        tr(
-                          'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
-                          'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
-                        ),
-                        style: NaraTextStyles.body,
+                if (!mounted || !context.mounted) return;
+                provider.updateDebtPaymentById(debtId, paymentAmount);
+                showAppSnackBar(
+                  context,
+                  backgroundColor: NaraColors.primary,
+                  content: Semantics(
+                    label: tr('Pembayaran berhasil', 'Payment successful'),
+                    child: Text(
+                      tr(
+                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                        'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
                       ),
+                      style: NaraTextStyles.body,
                     ),
-                  );
-                });
+                  ),
+                );
               },
               child: Semantics(
                 button: true,
@@ -2682,6 +2676,15 @@ class _TransactionItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: NaraTextStyles.label.copyWith(color: amountColor, fontWeight: FontWeight.bold),
           ),
+          if (!swipeEnabled && onDelete != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Hapus',
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded, color: NaraColors.danger, size: 20),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ],
       ),
     );

@@ -917,7 +917,7 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isCompactWidth = screenWidth < 360;
+    final isCompactWidth = screenWidth < 420;
 
     return Scaffold(
       backgroundColor: NaraColors.background,
@@ -1425,9 +1425,9 @@ class _SummaryCard extends StatelessWidget {
                 Text(
                   title,
                   style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.fade,
                 ),
                 const SizedBox(height: 2),
                 SizedBox(
