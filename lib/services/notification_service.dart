@@ -38,8 +38,6 @@ class NotificationService {
       'content://settings/system/notification_sound';
   static const String _defaultAlarmSoundUri =
       'content://settings/system/alarm_alert';
-  static const String _defaultRingtoneSoundUri =
-      'content://settings/system/ringtone';
   void Function(String payload)? _onNotificationTap;
   String? _pendingLaunchPayload;
 
@@ -459,7 +457,7 @@ class NotificationService {
     required String mode,
     String? soundUri,
   }) {
-    final isPopupMode = mode == 'Loud Alarm' || mode == 'Fake Call';
+    final isPopupMode = mode == 'Loud Alarm';
     const int insistentFlag = 4; // Notification.FLAG_INSISTENT
     final effectiveSoundUri = (soundUri != null && soundUri.isNotEmpty)
         ? soundUri
@@ -467,12 +465,10 @@ class NotificationService {
 
     var channelId = switch (mode) {
       'Loud Alarm' => 'reminders_loud_alarm_channel_v4',
-      'Fake Call' => 'reminders_fake_call_channel_v4',
       _ => 'reminders_message_channel_v4',
     };
     var channelName = switch (mode) {
       'Loud Alarm' => 'Reminder Loud Alarm',
-      'Fake Call' => 'Reminder Fake Calls',
       _ => 'Reminder Notifications',
     };
     if (soundUri != null && soundUri.isNotEmpty) {
@@ -491,17 +487,13 @@ class NotificationService {
         enableVibration: true,
         playSound: true,
         styleInformation: BigTextStyleInformation(body),
-        category: mode == 'Fake Call'
-            ? AndroidNotificationCategory.call
-            : (mode == 'Notification'
-                  ? AndroidNotificationCategory.message
-                  : AndroidNotificationCategory.alarm),
-        fullScreenIntent: mode == 'Fake Call' || mode == 'Loud Alarm',
+        category: mode == 'Notification'
+            ? AndroidNotificationCategory.message
+            : AndroidNotificationCategory.alarm,
+        fullScreenIntent: mode == 'Loud Alarm',
         audioAttributesUsage: mode == 'Loud Alarm'
             ? AudioAttributesUsage.alarm
-            : (mode == 'Fake Call'
-                  ? AudioAttributesUsage.notificationRingtone
-                  : AudioAttributesUsage.notification),
+            : AudioAttributesUsage.notification,
         onlyAlertOnce: mode == 'Notification',
         autoCancel: mode == 'Notification',
         ongoing: isPopupMode,
@@ -522,7 +514,6 @@ class NotificationService {
   String _fallbackSoundUriForMode(String mode) {
     return switch (mode) {
       'Loud Alarm' => _defaultAlarmSoundUri,
-      'Fake Call' => _defaultRingtoneSoundUri,
       _ => _defaultNotificationSoundUri,
     };
   }

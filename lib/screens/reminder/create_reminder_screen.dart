@@ -49,12 +49,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
       'icon': Icons.volume_up_rounded,
       'color': NaraColors.warning,
     },
-    {
-      'mode': 'Fake Call',
-      'nameKey': 'reminder_mode_fake_call',
-      'icon': Icons.call_rounded,
-      'color': NaraColors.danger,
-    },
   ];
 
   final List<int> _weekDayIndexes = const [0, 1, 2, 3, 4, 5, 6];
@@ -185,8 +179,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     }
 
     var effectiveType = _selectedType;
-    final isPopupMode =
-        effectiveType == 'Loud Alarm' || effectiveType == 'Fake Call';
+    final isPopupMode = effectiveType == 'Loud Alarm';
     if (isPopupMode) {
       final status = await NotificationService().getReminderHealthStatus();
       final hasNotif = status.notificationsEnabled;
@@ -261,7 +254,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
   }
 
   Future<void> _refreshReminderHealthIfNeeded() async {
-    final isPopupMode = _selectedType == 'Loud Alarm' || _selectedType == 'Fake Call';
+    final isPopupMode = _selectedType == 'Loud Alarm';
     if (!isPopupMode) return;
     setState(() => _isLoadingReminderHealth = true);
     final status = await NotificationService().getReminderHealthStatus();
@@ -342,8 +335,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     switch (type) {
       case 'Loud Alarm':
         return Icons.volume_up_rounded;
-      case 'Fake Call':
-        return Icons.call_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -578,7 +569,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                 );
               }).toList(),
             ),
-            if (_selectedType == 'Loud Alarm' || _selectedType == 'Fake Call') ...[
+            if (_selectedType == 'Loud Alarm') ...[
               const SizedBox(height: NaraSpacing.lg),
               _buildPermissionStatusCard(),
             ],
@@ -774,8 +765,8 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
           ),
           content: Text(
             isEnglish
-                ? 'Loud Alarm/Fake Call requires notification, exact alarm, and full-screen permissions to show on time.'
-                : 'Alarm Keras/Fake Call butuh izin notifikasi, alarm presisi, dan full-screen agar muncul tepat waktu.',
+                ? 'Alarm requires notification, exact alarm, and full-screen permissions to show on time.'
+                : 'Alarm butuh izin notifikasi, alarm presisi, dan full-screen agar muncul tepat waktu.',
           ),
           actions: [
             TextButton(
@@ -825,8 +816,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     switch (type) {
       case 'Loud Alarm':
         return I18n.t(context, 'loud_sound');
-      case 'Fake Call':
-        return I18n.t(context, 'fake_call_simulation');
       default:
         return I18n.t(context, 'message_on_screen');
     }
@@ -842,8 +831,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
         return 'Loud Alarm';
       case 'Fullscreen Alert':
         return 'Loud Alarm';
-      case 'Fake Call':
-        return 'Fake Call';
       default:
         return 'Notification';
     }
@@ -853,8 +840,6 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     switch (mode) {
       case 'Loud Alarm':
         return I18n.t(context, 'reminder_mode_loud_alarm');
-      case 'Fake Call':
-        return I18n.t(context, 'reminder_mode_fake_call');
       default:
         return I18n.t(context, 'reminder_mode_notification');
     }

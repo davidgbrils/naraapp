@@ -325,6 +325,9 @@ class AppProvider extends ChangeNotifier {
 
   void setAppInForeground(bool value) {
     _isAppInForeground = value;
+    if (value) {
+      unawaited(_runReminderFallbackCheck());
+    }
   }
 
   void bumpNotificationFeedVersion() {
@@ -350,6 +353,9 @@ class AppProvider extends ChangeNotifier {
   bool _isRestartingVoiceFollowUp = false;
   String _lastVoicePrompt = '';
   DateTime? _lastVoicePromptAt;
+  DateTime? _voiceSuppressInputUntil;
+  String _carriedVoiceText = '';
+  bool _resumeWithCarry = false;
   Map<String, dynamic>? _activeAlert;
   int _alertCountdown = 0;
   
@@ -376,7 +382,13 @@ class AppProvider extends ChangeNotifier {
     if (_isListening) return;
     _isListening = true;
     _isProcessing = false;
-    _lastIntent = '';
+    if (_resumeWithCarry && _carriedVoiceText.trim().isNotEmpty) {
+      _lastIntent = _carriedVoiceText.trim();
+    } else {
+      _lastIntent = '';
+      _carriedVoiceText = '';
+      _resumeWithCarry = false;
+    }
     _voiceErrorMessage = '';
     notifyListeners();
 
@@ -392,14 +404,14 @@ class AppProvider extends ChangeNotifier {
         speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
       );
       _rememberVoicePrompt(greeting);
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 350));
     }
     final localeId = isEnglish ? 'en_US' : 'id_ID';
     final isReady = await _voiceService.startListening(
       localeId: localeId,
       onStatus: (status) {
         if (status == 'notListening' || status == 'done') {
-          Future.delayed(const Duration(milliseconds: 900), () {
+          Future.delayed(const Duration(milliseconds: 250), () {
             if (_isProcessing) return;
             if (_pendingVoiceAction != null) return;
             final hasFollowUpDraft =
@@ -433,30 +445,40 @@ class AppProvider extends ChangeNotifier {
       onResult: (recognizedWords, isFinal) async {
         final text = recognizedWords.trim();
         if (text.isEmpty) return;
-        _lastIntent = text;
+        final suppressUntil = _voiceSuppressInputUntil;
+        if (suppressUntil != null && DateTime.now().isBefore(suppressUntil)) {
+          return;
+        }
+        final hasCarry = _carriedVoiceText.trim().isNotEmpty;
+        final mergedText = hasCarry ? '${_carriedVoiceText.trim()} $text'.trim() : text;
+        _lastIntent = mergedText;
         _isProcessing = !isFinal;
         notifyListeners();
 
         if (!isFinal) return;
-        if (_isLikelySelfSpeech(text)) {
+        if (_isLikelySelfSpeech(text) || _isLikelySelfSpeech(mergedText)) {
           _isListening = false;
           _isProcessing = false;
           notifyListeners();
           await Future.delayed(const Duration(milliseconds: 180));
+          _resumeWithCarry = _carriedVoiceText.trim().isNotEmpty;
           await startListening();
           return;
         }
         _isListening = false;
         _isProcessing = false;
+        final finalText = mergedText;
+        _carriedVoiceText = '';
+        _resumeWithCarry = false;
         Map<String, dynamic>? candidate;
         if (_voiceAwaitingField != null && _voiceDraftAction != null) {
           candidate = _applyFollowUpAnswer(
             draft: _voiceDraftAction!,
             field: _voiceAwaitingField!,
-            answer: text,
+            answer: finalText,
           );
         } else {
-          candidate = _buildPendingVoiceAction(text);
+          candidate = _buildPendingVoiceAction(finalText);
         }
         final missingField = candidate == null ? null : _nextMissingField(candidate);
         if (candidate != null && missingField != null) {
@@ -471,7 +493,7 @@ class AppProvider extends ChangeNotifier {
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
           _rememberVoicePrompt(prompt);
-          await Future.delayed(const Duration(milliseconds: 220));
+          await Future.delayed(const Duration(milliseconds: 500));
           await startListening();
           return;
         }
@@ -506,8 +528,8 @@ class AppProvider extends ChangeNotifier {
           _rememberVoicePrompt(prompt);
         } else {
           final prompt = isEnglish
-              ? 'I heard: $text. Command not recognized yet.'
-              : 'Saya dengar: $text. Perintah belum dikenali.';
+              ? 'I heard: $finalText. Command not recognized yet.'
+              : 'Saya dengar: $finalText. Perintah belum dikenali.';
           await _voiceService.speak(
             prompt,
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
@@ -529,7 +551,10 @@ class AppProvider extends ChangeNotifier {
 
   void _rememberVoicePrompt(String text) {
     _lastVoicePrompt = text.trim().toLowerCase();
-    _lastVoicePromptAt = DateTime.now();
+    final now = DateTime.now();
+    _lastVoicePromptAt = now;
+    // Guard window to avoid immediate self-capture from TTS tail.
+    _voiceSuppressInputUntil = now.add(const Duration(milliseconds: 1800));
   }
 
   bool _isLikelySelfSpeech(String text) {
@@ -546,6 +571,10 @@ class AppProvider extends ChangeNotifier {
             _lastVoicePrompt.contains(normalized))) {
       return true;
     }
+    if (_lastVoicePrompt.isNotEmpty &&
+        _tokenOverlapRatio(normalized, _lastVoicePrompt) >= 0.6) {
+      return true;
+    }
 
     final user = _userName.trim().toLowerCase();
     final systemPhrases = <String>[
@@ -558,13 +587,42 @@ class AppProvider extends ChangeNotifier {
       'complete missing information',
       'halo $user',
       'hello $user',
+      'kamu maunya',
+      'which reminder type',
+      'notifikasi loud alarm',
+      'notification loud alarm',
+      'notifikasi alarm keras',
     ];
     return systemPhrases.any((phrase) =>
         phrase.isNotEmpty &&
         (normalized == phrase || normalized.contains(phrase)));
   }
+
+  double _tokenOverlapRatio(String source, String target) {
+    Set<String> tokensOf(String value) {
+      final cleaned = value
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+          .split(RegExp(r'\s+'))
+          .where((e) => e.trim().isNotEmpty)
+          .toSet();
+      return cleaned;
+    }
+
+    final a = tokensOf(source);
+    final b = tokensOf(target);
+    if (a.isEmpty || b.isEmpty) return 0;
+    final intersection = a.intersection(b).length;
+    final base = a.length > b.length ? a.length : b.length;
+    return intersection / base;
+  }
   
   Future<void> stopListening() async {
+    final current = _lastIntent.trim();
+    if (current.isNotEmpty && _pendingVoiceAction == null) {
+      _carriedVoiceText = current;
+      _resumeWithCarry = true;
+    }
     await _voiceService.stopListening();
     _isListening = false;
     _isProcessing = false;
@@ -593,6 +651,8 @@ class AppProvider extends ChangeNotifier {
     _voiceDraftAction = null;
     _voiceAwaitingField = null;
     _isRestartingVoiceFollowUp = false;
+    _carriedVoiceText = '';
+    _resumeWithCarry = false;
     notifyListeners();
   }
 
@@ -764,7 +824,7 @@ class AppProvider extends ChangeNotifier {
               : 'Waktu reminder harus di masa depan.',
         };
       }
-      const allowedModes = <String>{'Notification', 'Loud Alarm', 'Fake Call'};
+      const allowedModes = <String>{'Notification', 'Loud Alarm'};
       if (!allowedModes.contains(mode)) {
         return {
           'isValid': false,
@@ -1200,7 +1260,6 @@ class AppProvider extends ChangeNotifier {
         .replaceAll('mode', '')
         .replaceAll('alarm', '')
         .replaceAll('notifikasi', '')
-        .replaceAll('fake call', '')
         .replaceAll(RegExp(r'\d+\s*(menit|minute|jam|hour)\s+lagi'), '')
         .replaceAll(RegExp(r'(dalam|in)\s+\d+\s*(menit|minute|jam|hour)'), '')
         .replaceAll(RegExp(r'(jam|pukul)\s+\d{1,2}([:.]\d{1,2})?'), '')
@@ -1279,9 +1338,6 @@ class AppProvider extends ChangeNotifier {
   }
 
   String? _detectReminderModeOrNull(String text) {
-    if (text.contains('fake call') || text.contains('telepon palsu')) {
-      return 'Fake Call';
-    }
     if (text.contains('alarm') || text.contains('keras')) {
       return 'Loud Alarm';
     }
@@ -1373,8 +1429,8 @@ class AppProvider extends ChangeNotifier {
             : 'Oke. Ingatkannya kapan? Kamu bisa bilang besok jam 8 malam, atau 10 menit lagi.';
       case 'reminder_mode':
         return isEnglish
-            ? 'Which reminder type do you prefer: Notification, Loud Alarm, or Fake Call?'
-            : 'Untuk jenis pengingatnya mau yang mana: Notifikasi, Alarm Keras, atau Fake Call?';
+            ? 'Which reminder type do you prefer: Notification or Alarm?'
+            : 'Untuk jenis pengingatnya mau yang mana: Notifikasi atau Alarm?';
       case 'expense_title':
         return isEnglish
             ? 'What is this expense for?'
@@ -1949,6 +2005,7 @@ class AppProvider extends ChangeNotifier {
       }
     } else {
       reminder['status'] = 'menunggu';
+      _normalizeReminderScheduleOnReactivation(reminder);
       _scheduleReminderNotification(reminder);
     }
 
@@ -2426,20 +2483,14 @@ class AppProvider extends ChangeNotifier {
         if (scheduledKey != null && scheduledKey == lastDeliveredScheduleAt) continue;
 
         final notificationId = _getReminderNotificationId(reminder);
-        if (_isAppInForeground) {
-          await _notificationService.cancelReminder(notificationId);
-          await _notificationService.cancelPopupAlarm(notificationId);
-          triggerReminderAlert(index);
-        } else {
-          await _notificationService.cancelReminder(notificationId);
-          await _notificationService.schedulePopupAlarm(
-            notificationId,
-            now.add(const Duration(seconds: 1)),
-            mode: mode,
-            title: reminder['title'] as String? ?? 'Reminder',
-            body: _buildReminderNotificationBody(reminder),
-          );
-        }
+        await _notificationService.cancelReminder(notificationId);
+        await _notificationService.schedulePopupAlarm(
+          notificationId,
+          now.add(const Duration(seconds: 1)),
+          mode: mode,
+          title: reminder['title'] as String? ?? 'Reminder',
+          body: _buildReminderNotificationBody(reminder),
+        );
 
         reminder['lastDeliveredScheduleAt'] = scheduledKey;
         reminder['lastDeliveredAt'] = now.toIso8601String();
@@ -2644,8 +2695,6 @@ class AppProvider extends ChangeNotifier {
         return 'Loud Alarm';
       case 'Fullscreen Alert':
         return 'Loud Alarm';
-      case 'Fake Call':
-        return 'Fake Call';
       default:
         return 'Notification';
     }
@@ -3003,6 +3052,34 @@ class AppProvider extends ChangeNotifier {
     _expenseCategories = List<String>.from(_defaultExpenseCategories);
     _incomeCategories = List<String>.from(_defaultIncomeCategories);
     notifyListeners();
+  }
+
+  void _normalizeReminderScheduleOnReactivation(Map<String, dynamic> reminder) {
+    final repeatEnabled = reminder['repeatEnabled'] as bool? ?? false;
+    final rawRepeatDays = reminder['repeatDays'];
+    final repeatDays = rawRepeatDays is List ? rawRepeatDays.whereType<int>().toSet() : <int>{};
+    if (repeatEnabled && repeatDays.isNotEmpty) {
+      return;
+    }
+
+    final scheduledAt = DateTime.tryParse(reminder['scheduledAt'] as String? ?? '');
+    if (scheduledAt == null) return;
+    final now = DateTime.now();
+    if (scheduledAt.isAfter(now)) return;
+
+    // When re-activating a completed reminder with past time, move it forward
+    // so it does not fire immediately before user has chance to adjust.
+    var next = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      scheduledAt.hour,
+      scheduledAt.minute,
+    );
+    if (!next.isAfter(now)) {
+      next = next.add(const Duration(days: 1));
+    }
+    reminder['scheduledAt'] = next.toIso8601String();
   }
 
   Future<void> _saveCategorySettings() async {

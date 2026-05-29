@@ -1317,7 +1317,15 @@ class _QuickActionsGrid extends StatelessWidget {
               icon: Icons.calendar_month_rounded,
               label: 'Kalender Perencanaan',
               color: NaraColors.accentPurple,
-              onTap: () => context.read<AppProvider>().setNavIndex(2),
+              onTap: () => Navigator.of(context).push(
+                PageRouteBuilder(
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                  pageBuilder: (context, animation, secondaryAnimation) => const ReminderListScreen(
+                    openCalendarOnStart: true,
+                  ),
+                ),
+              ),
               ),
             ),
           ],
@@ -1708,6 +1716,14 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                   const SizedBox(height: 10),
                 ],
                 if (type == 'reminder') ...[
+                  Text(
+                    isEnglish ? 'Schedule' : 'Jadwal',
+                    style: NaraTextStyles.caption.copyWith(
+                      color: NaraColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
@@ -1727,17 +1743,41 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                               lastDate: now.add(const Duration(days: 365)),
                             );
                             if (pickedDate == null) return;
-                            if (!context.mounted) return;
-                            final pickedTime = await showTimePicker(
-                              context: dialogContext,
-                              initialTime: TimeOfDay.fromDateTime(reminderAt ?? now),
-                            );
-                            if (pickedTime == null) return;
+                            final base = reminderAt ?? now;
                             setLocalState(() {
                               reminderAt = DateTime(
                                 pickedDate.year,
                                 pickedDate.month,
                                 pickedDate.day,
+                                base.hour,
+                                base.minute,
+                              );
+                            });
+                          },
+                          icon: const Icon(Icons.event_rounded, size: 16),
+                          label: Text(
+                            reminderAt == null
+                                ? (isEnglish ? 'Date' : 'Tanggal')
+                                : MaterialLocalizations.of(context).formatShortDate(reminderAt!),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final now = DateTime.now();
+                            final pickedTime = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: TimeOfDay.fromDateTime(reminderAt ?? now),
+                            );
+                            if (pickedTime == null) return;
+                            final base = reminderAt ?? now;
+                            setLocalState(() {
+                              reminderAt = DateTime(
+                                base.year,
+                                base.month,
+                                base.day,
                                 pickedTime.hour,
                                 pickedTime.minute,
                               );
@@ -1746,9 +1786,11 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                           icon: const Icon(Icons.schedule_rounded, size: 16),
                           label: Text(
                             reminderAt == null
-                                ? (isEnglish ? 'Set time' : 'Atur waktu')
-                                : '${MaterialLocalizations.of(context).formatShortDate(reminderAt!)} '
-                                    '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(reminderAt!), alwaysUse24HourFormat: true)}',
+                                ? (isEnglish ? 'Time' : 'Jam')
+                                : MaterialLocalizations.of(context).formatTimeOfDay(
+                                    TimeOfDay.fromDateTime(reminderAt!),
+                                    alwaysUse24HourFormat: true,
+                                  ),
                           ),
                         ),
                       ),
@@ -1759,8 +1801,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                     initialValue: reminderMode,
                     items: const [
                       DropdownMenuItem(value: 'Notification', child: Text('Notification')),
-                      DropdownMenuItem(value: 'Loud Alarm', child: Text('Loud Alarm')),
-                      DropdownMenuItem(value: 'Fake Call', child: Text('Fake Call')),
+                      DropdownMenuItem(value: 'Loud Alarm', child: Text('Alarm')),
                     ],
                     onChanged: (value) {
                       if (value == null) return;
@@ -1808,7 +1849,14 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                   updated['category'] = selectedCategory;
                 }
                 if (type == 'reminder') {
-                  updated['scheduledAt'] = reminderAt;
+                  DateTime? normalizedReminderAt = reminderAt;
+                  if (normalizedReminderAt != null &&
+                      normalizedReminderAt.isBefore(DateTime.now())) {
+                    normalizedReminderAt = normalizedReminderAt.add(
+                      const Duration(days: 1),
+                    );
+                  }
+                  updated['scheduledAt'] = normalizedReminderAt;
                   updated['mode'] = reminderMode;
                 }
                 if (type == 'debt') {

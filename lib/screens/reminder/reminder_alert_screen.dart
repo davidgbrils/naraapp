@@ -55,12 +55,12 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
     );
 
     final mode = (widget.reminder['mode'] as String?) ?? 'Notification';
-    _showFakeCall = mode == 'Fake Call';
+    _showFakeCall = false;
     _isFullscreenMode = mode == 'Fullscreen Alert';
     _isLoudAlarmMode = mode == 'Loud Alarm';
     _autoActionSeconds = _isLoudAlarmMode
         ? 90
-        : (_isFullscreenMode ? 75 : (_showFakeCall ? 60 : 0));
+        : (_isFullscreenMode ? 75 : 0);
     _countdown = _autoActionSeconds;
 
     _countdownController = AnimationController(
@@ -182,10 +182,6 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
   @override
   Widget build(BuildContext context) {
     final title = widget.reminder['title'] as String? ?? I18n.t(context, 'pay_electricity_bill');
-
-    if (_showFakeCall) {
-      return _buildFakeCallAlert(title);
-    }
 
     final headerText = _isFullscreenMode
         ? I18n.t(context, 'reminder_mode_loud_alarm')
@@ -357,158 +353,6 @@ class _ReminderAlertScreenState extends State<ReminderAlertScreen>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildFakeCallAlert(String reminderTitle) {
-    return Scaffold(
-      backgroundColor: NaraColors.textPrimary,
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: [
-                  NaraColors.primary.withValues(alpha: 0.1),
-                  NaraColors.background,
-                ],
-                radius: 1.5,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final ringSize = (constraints.maxWidth * 0.48).clamp(140.0, 180.0);
-                final innerSize = (ringSize * 0.78).clamp(110.0, 140.0);
-
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: NaraSpacing.lg, vertical: NaraSpacing.lg),
-                      child: Column(
-                        children: [
-                          Text(
-                            I18n.t(context, 'incoming_call'),
-                            style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary),
-                          ),
-                          const SizedBox(height: NaraSpacing.sm),
-                          Text(
-                            'NARA Reminder',
-                            style: NaraTextStyles.h2.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: NaraSpacing.xs),
-                          Text(
-                            reminderTitle,
-                            textAlign: TextAlign.center,
-                            style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
-                          ),
-                          const SizedBox(height: NaraSpacing.xs),
-                          Text(
-                            'Fake Call',
-                            style: NaraTextStyles.caption.copyWith(
-                              color: NaraColors.textSecondary.withValues(alpha: 0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: SizedBox(
-                          height: ringSize,
-                          width: ringSize,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              ScaleTransition(
-                                scale: _pulseAnimation,
-                                child: Container(
-                                  width: ringSize,
-                                  height: ringSize,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: NaraColors.primary.withValues(alpha: 0.4),
-                                      width: 3,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                width: innerSize,
-                                height: innerSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      NaraColors.primary.withValues(alpha: 0.2),
-                                      NaraColors.primary.withValues(alpha: 0.05),
-                                    ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.call_rounded,
-                                    size: innerSize * 0.42,
-                                    color: NaraColors.primary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(NaraSpacing.lg, NaraSpacing.lg, NaraSpacing.lg, NaraSpacing.xl),
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: _handleAnswer,
-                              icon: const Icon(Icons.call_rounded, size: 20),
-                              label: Text(I18n.t(context, 'answer')),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: NaraColors.success,
-                                foregroundColor: NaraColors.textOnPrimary,
-                                padding: const EdgeInsets.symmetric(vertical: NaraSpacing.md),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(NaraRadius.md),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: NaraSpacing.sm),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _handleSnooze,
-                              icon: const Icon(Icons.snooze_rounded, size: 20),
-                              label: Text(I18n.t(context, 'snooze_5_minutes')),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: NaraColors.surfaceWhite,
-                                side: BorderSide(
-                                  color: NaraColors.surfaceWhite.withValues(alpha: 0.35),
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: NaraSpacing.md),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(NaraRadius.md),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -8,6 +8,10 @@ import android.os.PowerManager
 import android.util.Log
 
 class ReminderPopupAlarmReceiver : BroadcastReceiver() {
+  companion object {
+    private const val TAG = "ReminderPopupAlarm"
+  }
+
   override fun onReceive(context: Context, intent: Intent?) {
     val reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
     if (reminderId < 0) return
@@ -15,6 +19,8 @@ class ReminderPopupAlarmReceiver : BroadcastReceiver() {
     val mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
     val title = intent?.getStringExtra("title") ?: "Reminder"
     val body = intent?.getStringExtra("body") ?: "Ada pengingat baru untukmu."
+
+    Log.i(TAG, "onReceive id=$reminderId mode=$mode")
 
     try {
       val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -41,17 +47,11 @@ class ReminderPopupAlarmReceiver : BroadcastReceiver() {
       } else {
         context.startService(serviceIntent)
       }
+      Log.i(TAG, "foreground service start requested id=$reminderId")
 
-      Log.i(
-        "ReminderPopupAlarm",
-        "Alarm foreground flow started for reminderId=$reminderId mode=$mode",
-      )
+      Log.i(TAG, "Alarm foreground flow started for reminderId=$reminderId mode=$mode")
     } catch (e: Exception) {
-      Log.e(
-        "ReminderPopupAlarm",
-        "Failed starting alarm foreground flow for reminderId=$reminderId",
-        e,
-      )
+      Log.e(TAG, "Failed starting alarm foreground flow for reminderId=$reminderId", e)
     }
   }
 }

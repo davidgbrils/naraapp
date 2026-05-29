@@ -11,7 +11,12 @@ import '../../providers/app_provider.dart';
 import 'reminder_alert_screen.dart';
 
 class ReminderListScreen extends StatefulWidget {
-  const ReminderListScreen({super.key});
+  final bool openCalendarOnStart;
+
+  const ReminderListScreen({
+    super.key,
+    this.openCalendarOnStart = false,
+  });
 
   @override
   State<ReminderListScreen> createState() => _ReminderListScreenState();
@@ -21,6 +26,17 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
   String _selectedFilter = 'all';
 
   final List<String> _filters = const ['all', 'today', 'upcoming', 'done'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openCalendarOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await _showPlanningCalendar(context, context.read<AppProvider>());
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -174,6 +190,15 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
                                   scheduleLabel: _scheduleLabel(context, entry.value),
                                   onToggle: () => provider.toggleReminderStatus(provider.reminders.indexOf(entry.value)),
                                   onDelete: () => provider.removeReminderAt(provider.reminders.indexOf(entry.value)),
+                                  onEdit: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => CreateReminderScreen(
+                                          editIndex: provider.reminders.indexOf(entry.value),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
@@ -779,7 +804,7 @@ class _ReminderCard extends StatelessWidget {
                   icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: NaraColors.primary),
                   fullWidth: false,
                 ),
-              if (!isCompleted && onEdit != null)
+              if (onEdit != null)
                 NaraSecondaryButton(
                   label: 'Edit',
                   onPressed: onEdit!,
@@ -846,8 +871,6 @@ class _ReminderCard extends StatelessWidget {
       case 'Alarm Keras':
       case 'Fullscreen Alert':
         return I18n.t(context, 'reminder_mode_loud_alarm');
-      case 'Fake Call':
-        return I18n.t(context, 'reminder_mode_fake_call');
       default:
         return I18n.t(context, 'reminder_mode_notification');
     }

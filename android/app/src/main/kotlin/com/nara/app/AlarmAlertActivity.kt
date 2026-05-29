@@ -22,8 +22,12 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.util.Log
 
 class AlarmAlertActivity : Activity() {
+  companion object {
+    private const val TAG = "AlarmAlertActivity"
+  }
   private var reminderId: Int = -1
   private var mode: String = "Loud Alarm"
   private var title: String = "Reminder"
@@ -37,34 +41,60 @@ class AlarmAlertActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     try {
+      Log.i(TAG, "onCreate start")
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
       }
       reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
       if (reminderId < 0) {
+        Log.w(TAG, "onCreate abort: invalid reminderId")
         finish()
         return
       }
       mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
       title = intent?.getStringExtra("title") ?: "Reminder"
       body = intent?.getStringExtra("body") ?: "Ada pengingat baru untukmu."
+      Log.i(TAG, "launch payload id=$reminderId mode=$mode title=$title")
 
       setContentView(buildContent())
       startAlarmSound()
       handler.postDelayed(autoSnoozeRunnable, autoSnoozeDelayMillis())
-    } catch (_: Exception) {
-      // Last-resort guard: avoid process crash on OEM-specific UI/runtime issues.
-      finish()
+      Log.i(TAG, "onCreate completed, autoSnooze=${autoSnoozeDelayMillis()}ms")
+    } catch (e: Exception) {
+      Log.e(TAG, "onCreate failed, applying fallback UI", e)
+      try {
+        setContentView(buildFallbackContent())
+      } catch (fallbackError: Exception) {
+        Log.e(TAG, "fallback UI failed; finishing", fallbackError)
+        finish()
+      }
     }
   }
 
   override fun onNewIntent(intent: Intent?) {
     super.onNewIntent(intent)
     setIntent(intent)
+    Log.i(TAG, "onNewIntent id=${intent?.getIntExtra("reminder_id", -1)}")
+  }
+
+  override fun onStart() {
+    super.onStart()
+    Log.i(TAG, "onStart")
+  }
+
+  override fun onResume() {
+    super.onResume()
+    Log.i(TAG, "onResume")
+  }
+
+  override fun onPause() {
+    super.onPause()
+    Log.i(TAG, "onPause")
   }
 
   override fun onDestroy() {
+    Log.i(TAG, "onDestroy")
     super.onDestroy()
     stopAlarmSound()
     handler.removeCallbacks(autoSnoozeRunnable)
@@ -225,7 +255,9 @@ class AlarmAlertActivity : Activity() {
           .build()
       }
       ringtone?.play()
-    } catch (_: Exception) {
+      Log.i(TAG, "alarm sound started mode=$mode")
+    } catch (e: Exception) {
+      Log.e(TAG, "failed to start alarm sound", e)
       ringtone = null
     }
   }
@@ -236,6 +268,7 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun handleComplete() {
+    Log.i(TAG, "handleComplete id=$reminderId")
     stopAlarmSound()
     clearNotification()
     stopAlarmService()
@@ -244,6 +277,7 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun handleSnooze() {
+    Log.i(TAG, "handleSnooze id=$reminderId")
     stopAlarmSound()
     clearNotification()
     scheduleNativeSnooze(5 * 60 * 1000L)
@@ -287,6 +321,7 @@ class AlarmAlertActivity : Activity() {
     )
     val clockInfo = AlarmManager.AlarmClockInfo(triggerAt, showIntent)
     alarmManager.setAlarmClock(clockInfo, pendingIntent)
+    Log.i(TAG, "native snooze scheduled id=$reminderId at=$triggerAt")
   }
 
   private fun notifyFlutterAction(action: String) {
@@ -307,7 +342,48 @@ class AlarmAlertActivity : Activity() {
     }
     try {
       startService(stopIntent)
-    } catch (_: Exception) {}
+    } catch (e: Exception) {
+      Log.e(TAG, "failed to stop foreground service", e)
+    }
+  }
+
+  private fun buildFallbackContent(): LinearLayout {
+    val root = LinearLayout(this).apply {
+      orientation = LinearLayout.VERTICAL
+      gravity = Gravity.CENTER
+      setPadding(36, 48, 36, 48)
+      layoutParams = ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.MATCH_PARENT
+      )
+      setBackgroundColor(Color.parseColor("#0B1220"))
+    }
+    val titleView = TextView(this).apply {
+      text = title
+      textSize = 28f
+      setTypeface(typeface, Typeface.BOLD)
+      setTextColor(Color.WHITE)
+      gravity = Gravity.CENTER
+    }
+    val bodyView = TextView(this).apply {
+      text = body
+      textSize = 15f
+      setTextColor(Color.parseColor("#CBD5E1"))
+      gravity = Gravity.CENTER
+    }
+    val doneButton = Button(this).apply {
+      text = if (currentLanguageCode() == "id") "Selesai" else "Complete"
+      setOnClickListener { handleComplete() }
+    }
+    val snoozeButton = Button(this).apply {
+      text = if (currentLanguageCode() == "id") "Tunda 5 Menit" else "Snooze 5 Minutes"
+      setOnClickListener { handleSnooze() }
+    }
+    root.addView(titleView)
+    root.addView(bodyView)
+    root.addView(doneButton)
+    root.addView(snoozeButton)
+    return root
   }
 
   private fun currentLanguageCode(): String {

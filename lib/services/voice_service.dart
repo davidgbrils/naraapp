@@ -70,8 +70,8 @@ class VoiceService implements VoiceServiceContract {
       await _speech.listen(
         listenOptions: SpeechListenOptions(
           localeId: resolvedLocaleId,
-          listenFor: const Duration(seconds: 35),
-          pauseFor: const Duration(seconds: 8),
+          listenFor: const Duration(seconds: 20),
+          pauseFor: const Duration(seconds: 3),
           partialResults: true,
         ),
         onResult: (result) => onResult(result.recognizedWords, result.finalResult),
