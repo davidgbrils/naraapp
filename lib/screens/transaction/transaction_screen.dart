@@ -1508,6 +1508,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final amountController = TextEditingController(
       text: _formatCurrency(((expense['amount'] as num?)?.toInt() ?? 0)),
     );
+    void disposeDialogResources() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        titleController.dispose();
+        amountController.dispose();
+      });
+    }
     final isEnglish = provider.language == 'English';
 
     final ok = await showDialog<bool>(
@@ -1544,20 +1550,17 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       ),
     );
     if (!context.mounted) {
-      titleController.dispose();
-      amountController.dispose();
+      disposeDialogResources();
       return;
     }
     if (ok != true) {
-      titleController.dispose();
-      amountController.dispose();
+      disposeDialogResources();
       return;
     }
 
     final title = titleController.text.trim();
     final amount = parseRupiahInput(amountController.text);
-    titleController.dispose();
-    amountController.dispose();
+    disposeDialogResources();
 
     if (title.isEmpty || amount <= 0) {
       showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
@@ -1582,6 +1585,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final amountController = TextEditingController(
       text: _formatCurrency(((income['amount'] as num?)?.toInt() ?? 0)),
     );
+    void disposeDialogResources() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        titleController.dispose();
+        amountController.dispose();
+      });
+    }
     final isEnglish = provider.language == 'English';
 
     final ok = await showDialog<bool>(
@@ -1618,20 +1627,17 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       ),
     );
     if (!context.mounted) {
-      titleController.dispose();
-      amountController.dispose();
+      disposeDialogResources();
       return;
     }
     if (ok != true) {
-      titleController.dispose();
-      amountController.dispose();
+      disposeDialogResources();
       return;
     }
 
     final title = titleController.text.trim();
     final amount = parseRupiahInput(amountController.text);
-    titleController.dispose();
-    amountController.dispose();
+    disposeDialogResources();
 
     if (title.isEmpty || amount <= 0) {
       showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
@@ -1660,6 +1666,14 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     );
     final noteController = TextEditingController(text: (debt['note'] as String?) ?? '');
     final typeNotifier = ValueNotifier<String>((debt['type'] as String?) == 'piutang' ? 'piutang' : 'utang');
+    void disposeDialogResources() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        titleController.dispose();
+        amountController.dispose();
+        noteController.dispose();
+        typeNotifier.dispose();
+      });
+    }
     DateTime? dueDate = _parseDebtDueDate((debt['dueDate'] as String?) ?? '');
 
     final ok = await showDialog<bool>(
@@ -1756,17 +1770,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     );
 
     if (!context.mounted) {
-      titleController.dispose();
-      amountController.dispose();
-      noteController.dispose();
-      typeNotifier.dispose();
+      disposeDialogResources();
       return;
     }
     if (ok != true) {
-      titleController.dispose();
-      amountController.dispose();
-      noteController.dispose();
-      typeNotifier.dispose();
+      disposeDialogResources();
       return;
     }
 
@@ -1774,10 +1782,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final amount = parseRupiahInput(amountController.text);
     final note = noteController.text.trim();
     final debtType = typeNotifier.value;
-    titleController.dispose();
-    amountController.dispose();
-    noteController.dispose();
-    typeNotifier.dispose();
+    disposeDialogResources();
 
     if (title.isEmpty || amount <= 0) {
       showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
@@ -1924,7 +1929,11 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           },
         );
       },
-    ).whenComplete(amountController.dispose);
+    ).whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        amountController.dispose();
+      });
+    });
   }
 
   bool _isValidPaymentAmount(String input, int remainingAmount) {

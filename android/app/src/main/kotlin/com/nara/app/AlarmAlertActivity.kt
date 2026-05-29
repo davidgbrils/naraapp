@@ -260,17 +260,14 @@ class AlarmAlertActivity : Activity() {
   private fun scheduleNativeSnooze(delayMillis: Long) {
     val triggerAt = System.currentTimeMillis() + delayMillis
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val intent = Intent(this, AlarmAlertActivity::class.java).apply {
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-          Intent.FLAG_ACTIVITY_SINGLE_TOP or
-          Intent.FLAG_ACTIVITY_CLEAR_TOP
-      putExtra("from_popup_alarm", true)
+    val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
+      action = "com.nara.app.POPUP_REMINDER_ALARM"
       putExtra("reminder_id", reminderId)
       putExtra("mode", mode)
       putExtra("title", title)
       putExtra("body", body)
     }
-    val pendingIntent = PendingIntent.getActivity(
+    val pendingIntent = PendingIntent.getBroadcast(
       this,
       reminderId,
       intent,

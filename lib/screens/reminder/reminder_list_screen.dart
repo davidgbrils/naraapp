@@ -700,6 +700,11 @@ class _ReminderCard extends StatelessWidget {
     final date = _displayDate(context, reminder);
     final note = (reminder['note'] as String? ?? '').trim();
     final modeLabel = _modeLabel(context, reminder);
+    final modeNormalized = ((reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification')
+        .toLowerCase();
+    final autoDoneByNotification = isCompleted &&
+        (modeNormalized == 'notification' || modeNormalized == 'notifikasi') &&
+        ((reminder['lastDeliveredAt'] as String?)?.isNotEmpty ?? false);
     final subtitle = date;
     final icon = reminder['icon'] as IconData? ?? Icons.notifications_active_rounded;
 
@@ -754,6 +759,11 @@ class _ReminderCard extends StatelessWidget {
             children: [
               NaraChip(label: modeLabel, selected: false),
               if (note.isNotEmpty) NaraChip(label: note, selected: false),
+              if (autoDoneByNotification)
+                NaraChip(
+                  label: I18n.t(context, 'auto_completed_via_notification'),
+                  selected: false,
+                ),
             ],
           ),
           const SizedBox(height: NaraSpacing.md),

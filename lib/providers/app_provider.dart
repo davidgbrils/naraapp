@@ -2093,10 +2093,32 @@ class AppProvider extends ChangeNotifier {
         final mode = _normalizeReminderMode(
           (reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification',
         );
-        if (mode == 'Notification') continue;
-
         final scheduledAt = DateTime.tryParse(reminder['scheduledAt'] as String? ?? '');
         if (scheduledAt == null || scheduledAt.isAfter(now)) continue;
+
+        if (mode == 'Notification') {
+          if (now.difference(scheduledAt) > const Duration(minutes: 30)) continue;
+          final scheduledKey = reminder['scheduledAt'] as String?;
+          final lastDeliveredScheduleAt = reminder['lastDeliveredScheduleAt'] as String?;
+          if (scheduledKey != null && scheduledKey == lastDeliveredScheduleAt) continue;
+
+          final notificationId = _getReminderNotificationId(reminder);
+          await _notificationService.showReminderNow(
+            notificationId,
+            reminder['title'] as String? ?? 'Reminder',
+            _buildReminderNotificationBody(reminder),
+            payload: 'reminder:$notificationId',
+            mode: 'Notification',
+            soundUri: reminder['soundUri'] as String?,
+          );
+          reminder['status'] = 'selesai';
+          reminder['lastDeliveredAt'] = now.toIso8601String();
+          reminder['lastDeliveredScheduleAt'] = scheduledKey;
+          reminder['snoozedUntil'] = null;
+          hasMutation = true;
+          continue;
+        }
+
         if (now.difference(scheduledAt) > const Duration(minutes: 30)) continue;
 
         final scheduledKey = reminder['scheduledAt'] as String?;
@@ -2104,12 +2126,9 @@ class AppProvider extends ChangeNotifier {
         if (scheduledKey != null && scheduledKey == lastDeliveredScheduleAt) continue;
 
         final notificationId = _getReminderNotificationId(reminder);
-        final shouldShowInAppPopup = _isAppInForeground &&
-            (mode == 'Fake Call' ||
-                mode == 'Loud Alarm');
-
-        if (shouldShowInAppPopup) {
+        if (_isAppInForeground) {
           await _notificationService.cancelReminder(notificationId);
+          await _notificationService.cancelPopupAlarm(notificationId);
           triggerReminderAlert(index);
         } else {
           await _notificationService.cancelReminder(notificationId);
@@ -2207,8 +2226,26 @@ class AppProvider extends ChangeNotifier {
     );
 
     // Notification mode should behave like a regular system notification.
-    if (mode == 'Notification') return;
-    triggerReminderAlert(reminderIndex);
+    if (mode == 'Notification') {
+      _completeNotificationReminder(reminderIndex, DateTime.now());
+      _saveReminders();
+      notifyListeners();
+      return;
+    }
+    // Popup modes are handled by native full-screen alarm flow.
+    // Avoid launching in-app alert to prevent double-flow and instant dismiss.
+    return;
+  }
+
+  void _completeNotificationReminder(int index, DateTime completedAt) {
+    if (index < 0 || index >= _reminders.length) return;
+    final reminder = _reminders[index];
+    final notificationId = _getReminderNotificationId(reminder);
+    reminder['status'] = 'selesai';
+    reminder['lastDeliveredAt'] = completedAt.toIso8601String();
+    reminder['lastDeliveredScheduleAt'] = reminder['scheduledAt'] as String?;
+    reminder['snoozedUntil'] = null;
+    _notificationService.cancelPopupAlarm(notificationId);
   }
 
   Future<void> _handleReportNotificationAction(String payload) async {

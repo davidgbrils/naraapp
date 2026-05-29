@@ -293,13 +293,7 @@ class _ReminderAlertLauncherState extends State<_ReminderAlertLauncher> {
       builder: (context, provider, _) {
         final activeAlert = provider.activeAlert;
         final reminderIndex = activeAlert?['index'] as int?;
-        final mode = (activeAlert?['mode'] as String?) ?? 'Notification';
         if (!_isShowing && activeAlert != null && reminderIndex != _lastReminderIndex) {
-          if (mode == 'Fake Call' || mode == 'Loud Alarm' || mode == 'Fullscreen Alert') {
-            // Avoid double-popup: these modes already use system-level alarm/full-screen flow.
-            provider.dismissAlert();
-            return const SizedBox.shrink();
-          }
           _lastReminderIndex = reminderIndex;
           _isShowing = true;
           WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -1315,6 +1309,24 @@ class _QuickActionsGrid extends StatelessWidget {
               label: I18n.t(context, 'settings'),
               color: NaraColors.textSecondary,
               onTap: () => Navigator.pushNamed(context, '/settings'),
+              ),
+            ),
+            NaraReveal(
+              delay: Duration(milliseconds: 280),
+              child: _ActionButton(
+              icon: Icons.history_rounded,
+              label: 'Histori Transaksi',
+              color: NaraColors.primary,
+              onTap: () => Navigator.pushNamed(context, '/history'),
+              ),
+            ),
+            NaraReveal(
+              delay: Duration(milliseconds: 320),
+              child: _ActionButton(
+              icon: Icons.calendar_month_rounded,
+              label: 'Kalender Perencanaan',
+              color: NaraColors.accentPurple,
+              onTap: () => context.read<AppProvider>().setNavIndex(2),
               ),
             ),
           ],
