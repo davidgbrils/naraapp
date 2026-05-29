@@ -22,14 +22,6 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
   final _amountController = TextEditingController();
   bool _showValidationHint = false;
   String _selectedCategory = 'Gaji';
-
-  final List<Map<String, dynamic>> _categories = [
-    {'name': 'Gaji', 'icon': Icons.work_rounded, 'color': NaraColors.success},
-    {'name': 'Freelance', 'icon': Icons.laptop_mac_rounded, 'color': NaraColors.primary},
-    {'name': 'Bisnis', 'icon': Icons.store_rounded, 'color': NaraColors.warning},
-    {'name': 'Investasi', 'icon': Icons.trending_up_rounded, 'color': NaraColors.accentPurple},
-    {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded, 'color': NaraColors.textSecondary},
-  ];
   static const Color _requiredFieldFill = Color(0xFFF5FCF7);
   static const Color _requiredFieldBorder = Color(0xFFBFE8CD);
 
@@ -99,6 +91,11 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final categories = provider.incomeCategories;
+    if (!categories.contains(_selectedCategory) && categories.isNotEmpty) {
+      _selectedCategory = categories.first;
+    }
     final amountInvalid = _showValidationHint && parseRupiahInput(_amountController.text) <= 0;
     final titleInvalid = _showValidationHint && _titleController.text.trim().isEmpty;
     return Scaffold(
@@ -226,48 +223,26 @@ class _CatatPemasukanScreenState extends State<CatatPemasukanScreen> {
             // Category selection
             Text(I18n.t(context, 'category'), style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
             const SizedBox(height: NaraSpacing.md),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _categories.map((category) {
-                  final isSelected = _selectedCategory == category['name'];
-                  final color = category['color'] as Color;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: NaraSpacing.sm),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedCategory = category['name']),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 140),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? NaraColors.primaryLight : NaraColors.surfaceWhite,
-                          borderRadius: BorderRadius.circular(NaraRadius.pill),
-                          border: Border.all(
-                            color: isSelected ? color.withValues(alpha: 0.6) : NaraColors.textHint.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              category['icon'],
-                              color: isSelected ? color : NaraColors.textSecondary,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              I18n.translateCategory(context, category['name'] as String),
-                              style: NaraTextStyles.caption.copyWith(
-                                color: isSelected ? color : NaraColors.textSecondary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedCategory,
+              items: categories
+                  .map(
+                    (category) => DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(I18n.translateCategory(context, category)),
                     ),
-                  );
-                }).toList(),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedCategory = value);
+              },
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: NaraColors.surfaceWhite,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                ),
               ),
             ),
 

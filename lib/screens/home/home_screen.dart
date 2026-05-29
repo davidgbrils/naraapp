@@ -336,7 +336,6 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
   final List<String> _recentVoiceCommands = <String>[];
   DateTime? _lastVoiceDisabledSnackAt;
   bool _isVoiceDisabledSnackVisible = false;
-  bool _isHoldingToTalk = false;
   late final TextEditingController _manualCommandController;
   Map<String, dynamic>? _manualCommandPreview;
 
@@ -466,48 +465,30 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                 enabled: true,
                 label: I18n.t(context, 'voice_button_semantics'),
                 child: GestureDetector(
-                  onTap: () {
-                    // Prevent quick tap from triggering start+stop too fast.
-                    if (!provider.voiceBetaEnabled) {
-                      _showVoiceDisabledSnackBar(context);
-                    }
-                  },
-                  onLongPressStart: (_) async {
+                  onTap: () async {
                     HapticFeedback.mediumImpact();
                     if (!provider.voiceBetaEnabled) {
                       _showVoiceDisabledSnackBar(context);
                       return;
                     }
-                    if (mounted) {
-                      setState(() => _isHoldingToTalk = true);
+                    if (provider.isListening) {
+                      await provider.stopListening();
+                      return;
                     }
-                    await provider.startListening();
-                  },
-                  onLongPressEnd: (_) async {
-                    if (!provider.voiceBetaEnabled) return;
-                    if (mounted) {
-                      setState(() => _isHoldingToTalk = false);
-                    }
-                    HapticFeedback.selectionClick();
-                    await provider.stopListening();
-                  },
-                  onLongPressCancel: () async {
-                    if (!provider.voiceBetaEnabled) return;
-                    if (mounted) {
-                      setState(() => _isHoldingToTalk = false);
-                    }
-                    await provider.stopListening();
+                    await provider.startListening(
+                      greet: !provider.hasVoiceFollowUpDraft,
+                    );
                   },
                   child: Tooltip(
-                    message: I18n.t(context, 'hold_to_speak'),
+                    message: I18n.t(context, 'tap_to_talk'),
                     child: AnimatedScale(
                       duration: const Duration(milliseconds: 140),
                       curve: Curves.easeOut,
-                      scale: _isHoldingToTalk ? 1.06 : 1.0,
+                      scale: provider.isListening ? 1.06 : 1.0,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          if (_isHoldingToTalk)
+                          if (provider.isListening)
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 180),
                               width: 116,
@@ -528,23 +509,23 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                             height: 90,
                             decoration: BoxDecoration(
                               color: provider.voiceBetaEnabled
-                                  ? (_isHoldingToTalk ? NaraColors.primary : NaraColors.primaryLight)
+                                  ? (provider.isListening ? NaraColors.primary : NaraColors.primaryLight)
                                   : NaraColors.surfaceCard,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: provider.voiceBetaEnabled
                                     ? NaraColors.primary
                                     : NaraColors.textHint,
-                                width: _isHoldingToTalk ? 3 : 2,
+                                width: provider.isListening ? 3 : 2,
                               ),
                               boxShadow: [
                                 BoxShadow(
                                   color: (provider.voiceBetaEnabled
                                           ? NaraColors.primary
                                           : NaraColors.textHint)
-                                      .withValues(alpha: _isHoldingToTalk ? 0.5 : 0.35),
-                                  blurRadius: _isHoldingToTalk ? 26 : 20,
-                                  spreadRadius: _isHoldingToTalk ? 5 : 2,
+                                      .withValues(alpha: provider.isListening ? 0.5 : 0.35),
+                                  blurRadius: provider.isListening ? 26 : 20,
+                                  spreadRadius: provider.isListening ? 5 : 2,
                                 ),
                               ],
                             ),
@@ -552,7 +533,7 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                               Icons.mic_rounded,
                               size: 40,
                               color: provider.voiceBetaEnabled
-                                  ? (_isHoldingToTalk ? NaraColors.textOnPrimary : NaraColors.primary)
+                                  ? (provider.isListening ? NaraColors.textOnPrimary : NaraColors.primary)
                                   : NaraColors.textSecondary,
                             ),
                           ),
@@ -562,13 +543,23 @@ class _VoiceActivationCardState extends State<_VoiceActivationCard> {
                   ),
                 ),
               ),
-              if (provider.voiceBetaEnabled && _isHoldingToTalk) ...[
+              if (provider.voiceBetaEnabled && provider.isListening) ...[
                 const SizedBox(height: 10),
                 Text(
                   I18n.t(context, 'listening'),
                   style: NaraTextStyles.caption.copyWith(
                     color: NaraColors.primary,
                     fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              if (provider.voiceBetaEnabled && provider.isRestartingVoiceFollowUp) ...[
+                const SizedBox(height: 6),
+                Text(
+                  isEnglish ? 'Continuing your answer...' : 'Melanjutkan jawaban kamu...',
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -1640,6 +1631,7 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
     bool isEnglish,
   ) async {
     final type = action['type'] as String? ?? '';
+    final provider = context.read<AppProvider>();
     final titleController = TextEditingController(text: (action['title'] as String?) ?? '');
     final amountController = TextEditingController(
       text: ((action['amount'] as int?) ?? 0) > 0 ? '${action['amount']}' : '',
@@ -1647,6 +1639,21 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
     DateTime? reminderAt = action['scheduledAt'] as DateTime?;
     String reminderMode = (action['mode'] as String?) ?? 'Notification';
     String debtType = (action['debtType'] as String?) ?? 'utang';
+    final categoryOptions = type == 'income'
+        ? provider.incomeCategories.toList()
+        : provider.expenseCategories.toList();
+    String selectedCategory = ((action['category'] as String?) ?? '').trim();
+    if (type == 'expense' || type == 'income') {
+      if (selectedCategory.isEmpty) {
+        selectedCategory = type == 'income' ? 'Lainnya' : 'Lainnya';
+      }
+      if (!categoryOptions.contains(selectedCategory)) {
+        categoryOptions.add(selectedCategory);
+      }
+      if (categoryOptions.isEmpty) {
+        categoryOptions.add('Lainnya');
+      }
+    }
 
     return showDialog<Map<String, dynamic>>(
       context: context,
@@ -1675,6 +1682,27 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                     decoration: const InputDecoration(
                       labelText: 'Nominal',
                       prefixText: 'Rp ',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (type == 'expense' || type == 'income') ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategory,
+                    items: categoryOptions
+                        .map(
+                          (item) => DropdownMenuItem<String>(
+                            value: item,
+                            child: Text(I18n.translateCategory(context, item)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null || value.trim().isEmpty) return;
+                      setLocalState(() => selectedCategory = value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: isEnglish ? 'Category' : 'Kategori',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1775,6 +1803,9 @@ class _VoiceActionLauncherState extends State<_VoiceActionLauncher> {
                 }
                 if (type == 'expense' || type == 'income' || type == 'debt' || type == 'debt_payment') {
                   updated['amount'] = parseRupiahInput(amountController.text);
+                }
+                if (type == 'expense' || type == 'income') {
+                  updated['category'] = selectedCategory;
                 }
                 if (type == 'reminder') {
                   updated['scheduledAt'] = reminderAt;

@@ -354,6 +354,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(tr('Kategori', 'Categories'), style: titleStyle),
+                const SizedBox(height: 4),
+                Text(
+                  tr(
+                    'Sumber data: ${filteredExpenses.length} transaksi',
+                    'Data source: ${filteredExpenses.length} transactions',
+                  ),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 _buildCategoryChartRow(
                   sortedCategories: sortedExpenseCategories,
@@ -572,6 +582,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(tr('Sumber Pemasukan', 'Income Sources'), style: titleStyle),
+                const SizedBox(height: 4),
+                Text(
+                  tr(
+                    'Sumber data: ${filteredIncomes.length} transaksi',
+                    'Data source: ${filteredIncomes.length} transactions',
+                  ),
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 _buildCategoryChartRow(
                   sortedCategories: sortedIncomeCategories,
@@ -1508,10 +1528,18 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final amountController = TextEditingController(
       text: _formatCurrency(((expense['amount'] as num?)?.toInt() ?? 0)),
     );
+    final expenseCategories = provider.expenseCategories.toList();
+    final rawCategory = ((expense['category'] as String?) ?? 'Lainnya').trim();
+    final selectedCategory = rawCategory.isEmpty ? 'Lainnya' : rawCategory;
+    if (!expenseCategories.contains(selectedCategory)) {
+      expenseCategories.add(selectedCategory);
+    }
+    final categoryNotifier = ValueNotifier<String>(selectedCategory);
     void disposeDialogResources() {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         titleController.dispose();
         amountController.dispose();
+        categoryNotifier.dispose();
       });
     }
     final isEnglish = provider.language == 'English';
@@ -1529,81 +1557,24 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
               decoration: InputDecoration(labelText: isEnglish ? 'Description' : 'Deskripsi'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [RupiahInputFormatter()],
-              decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(I18n.t(context, 'cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(I18n.t(context, 'save')),
-          ),
-        ],
-      ),
-    );
-    if (!context.mounted) {
-      disposeDialogResources();
-      return;
-    }
-    if (ok != true) {
-      disposeDialogResources();
-      return;
-    }
-
-    final title = titleController.text.trim();
-    final amount = parseRupiahInput(amountController.text);
-    disposeDialogResources();
-
-    if (title.isEmpty || amount <= 0) {
-      showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
-      return;
-    }
-
-    final updatedExpense = Map<String, dynamic>.from(expense)
-      ..['title'] = title
-      ..['amount'] = amount;
-    provider.updateExpenseAt(index, updatedExpense);
-    showAppSnackBar(context, content: Text(isEnglish ? 'Expense updated.' : 'Pengeluaran diperbarui.'));
-  }
-
-  Future<void> _showEditIncomeDialog({
-    required BuildContext context,
-    required AppProvider provider,
-    required int index,
-  }) async {
-    if (index < 0 || index >= provider.incomes.length) return;
-    final income = provider.incomes[index];
-    final titleController = TextEditingController(text: (income['title'] as String?) ?? '');
-    final amountController = TextEditingController(
-      text: _formatCurrency(((income['amount'] as num?)?.toInt() ?? 0)),
-    );
-    void disposeDialogResources() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        titleController.dispose();
-        amountController.dispose();
-      });
-    }
-    final isEnglish = provider.language == 'English';
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: NaraColors.surfaceWhite,
-        title: Text(isEnglish ? 'Edit Income' : 'Edit Pemasukan', style: NaraTextStyles.h3),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(labelText: isEnglish ? 'Description' : 'Deskripsi'),
+            ValueListenableBuilder<String>(
+              valueListenable: categoryNotifier,
+              builder: (context, category, _) => DropdownButtonFormField<String>(
+                initialValue: category,
+                items: expenseCategories
+                    .map(
+                      (item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(I18n.translateCategory(context, item)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null || value.trim().isEmpty) return;
+                  categoryNotifier.value = value;
+                },
+                decoration: InputDecoration(labelText: isEnglish ? 'Category' : 'Kategori'),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1637,6 +1608,118 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     final title = titleController.text.trim();
     final amount = parseRupiahInput(amountController.text);
+    final category = categoryNotifier.value.trim().isEmpty
+        ? 'Lainnya'
+        : categoryNotifier.value.trim();
+    disposeDialogResources();
+
+    if (title.isEmpty || amount <= 0) {
+      showAppSnackBar(context, content: Text(isEnglish ? 'Invalid input.' : 'Input tidak valid.'));
+      return;
+    }
+
+    final updatedExpense = Map<String, dynamic>.from(expense)
+      ..['title'] = title
+      ..['amount'] = amount
+      ..['category'] = category;
+    provider.updateExpenseAt(index, updatedExpense);
+    showAppSnackBar(context, content: Text(isEnglish ? 'Expense updated.' : 'Pengeluaran diperbarui.'));
+  }
+
+  Future<void> _showEditIncomeDialog({
+    required BuildContext context,
+    required AppProvider provider,
+    required int index,
+  }) async {
+    if (index < 0 || index >= provider.incomes.length) return;
+    final income = provider.incomes[index];
+    final titleController = TextEditingController(text: (income['title'] as String?) ?? '');
+    final amountController = TextEditingController(
+      text: _formatCurrency(((income['amount'] as num?)?.toInt() ?? 0)),
+    );
+    final incomeCategories = provider.incomeCategories.toList();
+    final rawCategory = ((income['category'] as String?) ?? 'Lainnya').trim();
+    final selectedCategory = rawCategory.isEmpty ? 'Lainnya' : rawCategory;
+    if (!incomeCategories.contains(selectedCategory)) {
+      incomeCategories.add(selectedCategory);
+    }
+    final categoryNotifier = ValueNotifier<String>(selectedCategory);
+    void disposeDialogResources() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        titleController.dispose();
+        amountController.dispose();
+        categoryNotifier.dispose();
+      });
+    }
+    final isEnglish = provider.language == 'English';
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NaraColors.surfaceWhite,
+        title: Text(isEnglish ? 'Edit Income' : 'Edit Pemasukan', style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: InputDecoration(labelText: isEnglish ? 'Description' : 'Deskripsi'),
+            ),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<String>(
+              valueListenable: categoryNotifier,
+              builder: (context, category, _) => DropdownButtonFormField<String>(
+                initialValue: category,
+                items: incomeCategories
+                    .map(
+                      (item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(I18n.translateCategory(context, item)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null || value.trim().isEmpty) return;
+                  categoryNotifier.value = value;
+                },
+                decoration: InputDecoration(labelText: isEnglish ? 'Category' : 'Kategori'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(I18n.t(context, 'cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(I18n.t(context, 'save')),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) {
+      disposeDialogResources();
+      return;
+    }
+    if (ok != true) {
+      disposeDialogResources();
+      return;
+    }
+
+    final title = titleController.text.trim();
+    final amount = parseRupiahInput(amountController.text);
+    final category = categoryNotifier.value.trim().isEmpty
+        ? 'Lainnya'
+        : categoryNotifier.value.trim();
     disposeDialogResources();
 
     if (title.isEmpty || amount <= 0) {
@@ -1646,7 +1729,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
 
     final updatedIncome = Map<String, dynamic>.from(income)
       ..['title'] = title
-      ..['amount'] = amount;
+      ..['amount'] = amount
+      ..['category'] = category;
     provider.updateIncomeAt(index, updatedIncome);
     showAppSnackBar(context, content: Text(isEnglish ? 'Income updated.' : 'Pemasukan diperbarui.'));
   }
@@ -2252,11 +2336,28 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       final rawCategory = (item['category'] as String?)?.trim();
       final category = (rawCategory == null || rawCategory.isEmpty)
           ? tr('Lainnya', 'Others')
-          : rawCategory;
+          : _normalizeCategory(rawCategory);
       final amount = ((item['amount'] as num?)?.round() ?? 0);
       totals[category] = (totals[category] ?? 0) + amount;
     }
     return totals;
+  }
+
+  String _normalizeCategory(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower.isEmpty) return 'Lainnya';
+    if (lower == 'food') return 'Makan';
+    if (lower == 'transport' || lower == 'trasnport' || lower == 'transportasi') {
+      return 'Transport';
+    }
+    if (lower == 'shopping') return 'Belanja';
+    if (lower == 'health') return 'Kesehatan';
+    if (lower == 'entertainment') return 'Hiburan';
+    if (lower == 'salary') return 'Gaji';
+    if (lower == 'business') return 'Bisnis';
+    if (lower == 'investment') return 'Investasi';
+    if (lower == 'others' || lower == 'other') return 'Lainnya';
+    return raw.trim();
   }
 
   List<MapEntry<String, int>> _sortCategoryTotals(Map<String, int> totals) {

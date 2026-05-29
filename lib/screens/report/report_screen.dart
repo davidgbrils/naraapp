@@ -107,7 +107,7 @@ class _ReportScreenState extends State<ReportScreen> {
     final balance = totalIncome - totalExpense;
     final categoryTotals = <String, int>{};
     for (final expense in filteredExpenses) {
-      final category = (expense['category'] as String?) ?? 'Lainnya';
+      final category = _normalizeCategory((expense['category'] as String?) ?? 'Lainnya');
       final amount = ((expense['amount'] as num?)?.round() ?? 0);
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
     }
@@ -1041,7 +1041,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
           final categoryTotals = <String, int>{};
           for (final expense in filteredExpenses) {
-            final category = (expense['category'] as String?) ?? 'Lainnya';
+            final category = _normalizeCategory((expense['category'] as String?) ?? 'Lainnya');
             final amount = ((expense['amount'] as num?)?.round() ?? 0);
             categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
           }
@@ -1323,6 +1323,13 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 const SizedBox(height: NaraSpacing.xxl),
                 Text(I18n.t(context, 'by_category'), style: NaraTextStyles.h3),
+                const SizedBox(height: NaraSpacing.xs),
+                Text(
+                  'Sumber data: ${filteredExpenses.length} transaksi',
+                  style: NaraTextStyles.caption.copyWith(
+                    color: NaraColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: NaraSpacing.lg),
                 if (_selectedCategoryFilter != null) ...[
                   Row(
@@ -1394,6 +1401,23 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
       floatingActionButton: null,
     );
+  }
+
+  String _normalizeCategory(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower.isEmpty) return 'Lainnya';
+    if (lower == 'food') return 'Makan';
+    if (lower == 'transport' || lower == 'trasnport' || lower == 'transportasi') {
+      return 'Transport';
+    }
+    if (lower == 'shopping') return 'Belanja';
+    if (lower == 'health') return 'Kesehatan';
+    if (lower == 'entertainment') return 'Hiburan';
+    if (lower == 'salary') return 'Gaji';
+    if (lower == 'business') return 'Bisnis';
+    if (lower == 'investment') return 'Investasi';
+    if (lower == 'others' || lower == 'other') return 'Lainnya';
+    return raw.trim();
   }
 
 }

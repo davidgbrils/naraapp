@@ -63,12 +63,30 @@ class AppProvider extends ChangeNotifier {
   static const String _voiceSpeedKey = 'voice_speed';
   static const String _voiceBetaEnabledKey = 'voice_beta_enabled';
   static const String _voiceConfirmEnabledKey = 'voice_confirm_enabled';
+  static const String _voiceGreetingEnabledKey = 'voice_greeting_enabled';
   static const String _profileImagePathKey = 'profile_image_path';
   static const String _reminderNotifsEnabledKey = 'notif_reminder_enabled';
   static const String _debtNotifsEnabledKey = 'notif_debt_enabled';
   static const String _transactionNotifsEnabledKey = 'notif_transaction_enabled';
   static const String _transactionSwipeEnabledKey = 'transaction_swipe_enabled';
   static const String _monthlyBudgetKey = 'monthly_budget';
+  static const String _expenseCategoriesKey = 'expense_categories';
+  static const String _incomeCategoriesKey = 'income_categories';
+  static const List<String> _defaultExpenseCategories = <String>[
+    'Makan',
+    'Transport',
+    'Belanja',
+    'Kesehatan',
+    'Hiburan',
+    'Lainnya',
+  ];
+  static const List<String> _defaultIncomeCategories = <String>[
+    'Gaji',
+    'Freelance',
+    'Bisnis',
+    'Investasi',
+    'Lainnya',
+  ];
 
   bool _isDarkMode = false;
   bool _notificationsEnabled = true;
@@ -77,6 +95,7 @@ class AppProvider extends ChangeNotifier {
   double _voiceSpeed = 1.0;
   bool _voiceBetaEnabled = true;
   bool _voiceConfirmEnabled = true;
+  bool _voiceGreetingEnabled = true;
   String _profileImagePath = '';
   bool _reminderNotificationsEnabled = true;
   bool _debtNotificationsEnabled = true;
@@ -84,6 +103,8 @@ class AppProvider extends ChangeNotifier {
   bool _transactionSwipeEnabled = true;
   int _monthlyBudget = 0;
   int _notificationFeedVersion = 0;
+  List<String> _expenseCategories = List<String>.from(_defaultExpenseCategories);
+  List<String> _incomeCategories = List<String>.from(_defaultIncomeCategories);
   
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isLoggedIn => _isLoggedIn;
@@ -97,6 +118,7 @@ class AppProvider extends ChangeNotifier {
   double get voiceSpeed => _voiceSpeed;
   bool get voiceBetaEnabled => _voiceBetaEnabled;
   bool get voiceConfirmEnabled => _voiceConfirmEnabled;
+  bool get voiceGreetingEnabled => _voiceGreetingEnabled;
   String get profileImagePath => _profileImagePath;
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
   bool get debtNotificationsEnabled => _debtNotificationsEnabled;
@@ -104,6 +126,60 @@ class AppProvider extends ChangeNotifier {
   bool get transactionSwipeEnabled => _transactionSwipeEnabled;
   int get monthlyBudget => _monthlyBudget;
   int get notificationFeedVersion => _notificationFeedVersion;
+  List<String> get expenseCategories => List<String>.unmodifiable(_expenseCategories);
+  List<String> get incomeCategories => List<String>.unmodifiable(_incomeCategories);
+
+  Future<void> addExpenseCategory(String value) async {
+    final next = value.trim();
+    if (next.isEmpty) return;
+    final exists = _expenseCategories.any(
+      (item) => item.toLowerCase() == next.toLowerCase(),
+    );
+    if (exists) return;
+    _expenseCategories.add(next);
+    await _saveCategorySettings();
+    notifyListeners();
+  }
+
+  Future<void> addIncomeCategory(String value) async {
+    final next = value.trim();
+    if (next.isEmpty) return;
+    final exists = _incomeCategories.any(
+      (item) => item.toLowerCase() == next.toLowerCase(),
+    );
+    if (exists) return;
+    _incomeCategories.add(next);
+    await _saveCategorySettings();
+    notifyListeners();
+  }
+
+  Future<void> removeExpenseCategory(String value) async {
+    final target = value.trim();
+    if (target.isEmpty) return;
+    if (target.toLowerCase() == 'lainnya') return;
+    _expenseCategories.removeWhere(
+      (item) => item.toLowerCase() == target.toLowerCase(),
+    );
+    if (_expenseCategories.isEmpty) {
+      _expenseCategories = List<String>.from(_defaultExpenseCategories);
+    }
+    await _saveCategorySettings();
+    notifyListeners();
+  }
+
+  Future<void> removeIncomeCategory(String value) async {
+    final target = value.trim();
+    if (target.isEmpty) return;
+    if (target.toLowerCase() == 'lainnya') return;
+    _incomeCategories.removeWhere(
+      (item) => item.toLowerCase() == target.toLowerCase(),
+    );
+    if (_incomeCategories.isEmpty) {
+      _incomeCategories = List<String>.from(_defaultIncomeCategories);
+    }
+    await _saveCategorySettings();
+    notifyListeners();
+  }
   
   Future<void> completeOnboarding() async {
     _isOnboardingComplete = true;
@@ -182,6 +258,13 @@ class AppProvider extends ChangeNotifier {
     _voiceConfirmEnabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_voiceConfirmEnabledKey, _voiceConfirmEnabled);
+    notifyListeners();
+  }
+
+  Future<void> setVoiceGreetingEnabled(bool value) async {
+    _voiceGreetingEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_voiceGreetingEnabledKey, _voiceGreetingEnabled);
     notifyListeners();
   }
 
@@ -264,6 +347,9 @@ class AppProvider extends ChangeNotifier {
   Map<String, dynamic>? _pendingVoiceAction;
   Map<String, dynamic>? _voiceDraftAction;
   String? _voiceAwaitingField;
+  bool _isRestartingVoiceFollowUp = false;
+  String _lastVoicePrompt = '';
+  DateTime? _lastVoicePromptAt;
   Map<String, dynamic>? _activeAlert;
   int _alertCountdown = 0;
   
@@ -274,8 +360,11 @@ class AppProvider extends ChangeNotifier {
   Map<String, dynamic>? get pendingVoiceAction => _pendingVoiceAction;
   Map<String, dynamic>? get activeAlert => _activeAlert;
   int get alertCountdown => _alertCountdown;
+  bool get isRestartingVoiceFollowUp => _isRestartingVoiceFollowUp;
+  bool get hasVoiceFollowUpDraft =>
+      _voiceAwaitingField != null && _voiceDraftAction != null;
   
-  Future<void> startListening() async {
+  Future<void> startListening({bool greet = false}) async {
     if (!_voiceBetaEnabled) {
       _voiceErrorMessage = I18n.tByCode(
         _language == 'English' ? 'en' : 'id',
@@ -292,6 +381,19 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
 
     final isEnglish = _language == 'English';
+    final shouldGreet = greet && _voiceGreetingEnabled && !hasVoiceFollowUpDraft;
+    if (shouldGreet) {
+      final displayName = _userName.trim().isEmpty ? (isEnglish ? 'there' : 'kamu') : _userName.trim();
+      final greeting = isEnglish
+          ? 'Hello $displayName, what can NARA help you with?'
+          : 'Halo $displayName, ada yang bisa NARA bantu?';
+      await _voiceService.speak(
+        greeting,
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
+      _rememberVoicePrompt(greeting);
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
     final localeId = isEnglish ? 'en_US' : 'id_ID';
     final isReady = await _voiceService.startListening(
       localeId: localeId,
@@ -300,6 +402,22 @@ class AppProvider extends ChangeNotifier {
           Future.delayed(const Duration(milliseconds: 900), () {
             if (_isProcessing) return;
             if (_pendingVoiceAction != null) return;
+            final hasFollowUpDraft =
+                _voiceAwaitingField != null && _voiceDraftAction != null;
+            if (hasFollowUpDraft && !_isRestartingVoiceFollowUp) {
+              _isRestartingVoiceFollowUp = true;
+              _isListening = false;
+              _isProcessing = false;
+              notifyListeners();
+              Future.delayed(const Duration(milliseconds: 180), () async {
+                try {
+                  await startListening();
+                } finally {
+                  _isRestartingVoiceFollowUp = false;
+                }
+              });
+              return;
+            }
             _isListening = false;
             _isProcessing = false;
             notifyListeners();
@@ -320,6 +438,14 @@ class AppProvider extends ChangeNotifier {
         notifyListeners();
 
         if (!isFinal) return;
+        if (_isLikelySelfSpeech(text)) {
+          _isListening = false;
+          _isProcessing = false;
+          notifyListeners();
+          await Future.delayed(const Duration(milliseconds: 180));
+          await startListening();
+          return;
+        }
         _isListening = false;
         _isProcessing = false;
         Map<String, dynamic>? candidate;
@@ -344,6 +470,7 @@ class AppProvider extends ChangeNotifier {
             prompt,
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
+          _rememberVoicePrompt(prompt);
           await Future.delayed(const Duration(milliseconds: 220));
           await startListening();
           return;
@@ -357,29 +484,35 @@ class AppProvider extends ChangeNotifier {
             : validateVoiceAction(_pendingVoiceAction!);
         notifyListeners();
         if (_pendingVoiceAction != null && validation['isValid'] == true) {
+          final prompt = isEnglish
+              ? 'Data is ready and added to draft. Please confirm on screen.'
+              : 'Data sudah berhasil ditambahkan, silakan konfirmasi di layar.';
           await _voiceService.speak(
-            isEnglish
-                ? 'Command detected. Please confirm action on screen.'
-                : 'Perintah terdeteksi. Silakan konfirmasi aksi di layar.',
+            prompt,
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
+          _rememberVoicePrompt(prompt);
         } else if (_pendingVoiceAction != null) {
           final msg = (validation['message'] as String?)?.trim();
+          final prompt = msg?.isNotEmpty == true
+              ? msg!
+              : (isEnglish
+                  ? 'Please complete missing information.'
+                  : 'Lengkapi informasi yang kurang ya.');
           await _voiceService.speak(
-            msg?.isNotEmpty == true
-                ? msg!
-                : (isEnglish
-                    ? 'Please complete missing information.'
-                    : 'Lengkapi informasi yang kurang ya.'),
+            prompt,
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
+          _rememberVoicePrompt(prompt);
         } else {
+          final prompt = isEnglish
+              ? 'I heard: $text. Command not recognized yet.'
+              : 'Saya dengar: $text. Perintah belum dikenali.';
           await _voiceService.speak(
-            isEnglish
-                ? 'I heard: $text. Command not recognized yet.'
-                : 'Saya dengar: $text. Perintah belum dikenali.',
+            prompt,
             speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
           );
+          _rememberVoicePrompt(prompt);
         }
       },
     );
@@ -390,7 +523,45 @@ class AppProvider extends ChangeNotifier {
         : 'Izin mikrofon ditolak atau layanan suara tidak tersedia.';
     _isListening = false;
     _isProcessing = false;
+    _isRestartingVoiceFollowUp = false;
     notifyListeners();
+  }
+
+  void _rememberVoicePrompt(String text) {
+    _lastVoicePrompt = text.trim().toLowerCase();
+    _lastVoicePromptAt = DateTime.now();
+  }
+
+  bool _isLikelySelfSpeech(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    final promptAt = _lastVoicePromptAt;
+    if (promptAt == null) return false;
+    final elapsed = DateTime.now().difference(promptAt);
+    if (elapsed > const Duration(seconds: 6)) return false;
+
+    if (_lastVoicePrompt.isNotEmpty &&
+        (normalized == _lastVoicePrompt ||
+            normalized.contains(_lastVoicePrompt) ||
+            _lastVoicePrompt.contains(normalized))) {
+      return true;
+    }
+
+    final user = _userName.trim().toLowerCase();
+    final systemPhrases = <String>[
+      'nara bantu',
+      'silakan konfirmasi',
+      'please confirm',
+      'perintah belum dikenali',
+      'command not recognized',
+      'lengkapi informasi',
+      'complete missing information',
+      'halo $user',
+      'hello $user',
+    ];
+    return systemPhrases.any((phrase) =>
+        phrase.isNotEmpty &&
+        (normalized == phrase || normalized.contains(phrase)));
   }
   
   Future<void> stopListening() async {
@@ -421,6 +592,7 @@ class AppProvider extends ChangeNotifier {
     _pendingVoiceAction = null;
     _voiceDraftAction = null;
     _voiceAwaitingField = null;
+    _isRestartingVoiceFollowUp = false;
     notifyListeners();
   }
 
@@ -458,8 +630,8 @@ class AppProvider extends ChangeNotifier {
       });
       await _voiceService.speak(
         isEnglish
-            ? 'Command detected. Please confirm action on screen.'
-            : 'Perintah terdeteksi. Silakan konfirmasi aksi di layar.',
+            ? 'Data is ready and added to draft. Please confirm on screen.'
+            : 'Data sudah berhasil ditambahkan, silakan konfirmasi di layar.',
         speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
       );
       return;
@@ -646,6 +818,12 @@ class AppProvider extends ChangeNotifier {
         'icon': 'shopping_bag',
       });
       _trackEvent('voice_command_success', extras: {'type': 'expense'});
+      await _voiceService.speak(
+        _language == 'English'
+            ? 'Expense added successfully.'
+            : 'Pengeluaran berhasil ditambahkan.',
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
       return true;
     }
     if (type == 'income') {
@@ -656,6 +834,12 @@ class AppProvider extends ChangeNotifier {
         'time': _language == 'English' ? 'Today' : 'Hari ini',
       });
       _trackEvent('voice_command_success', extras: {'type': 'income'});
+      await _voiceService.speak(
+        _language == 'English'
+            ? 'Income added successfully.'
+            : 'Pemasukan berhasil ditambahkan.',
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
       return true;
     }
     if (type == 'debt') {
@@ -669,6 +853,12 @@ class AppProvider extends ChangeNotifier {
         'note': action['note'] as String? ?? '',
       });
       _trackEvent('voice_command_success', extras: {'type': 'debt'});
+      await _voiceService.speak(
+        _language == 'English'
+            ? 'Debt or receivable added successfully.'
+            : 'Utang atau piutang berhasil ditambahkan.',
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
       return true;
     }
     if (type == 'debt_payment') {
@@ -677,6 +867,12 @@ class AppProvider extends ChangeNotifier {
       if (debtId == null || amount <= 0) return false;
       updateDebtPaymentById(debtId, amount);
       _trackEvent('voice_command_success', extras: {'type': 'debt_payment'});
+      await _voiceService.speak(
+        _language == 'English'
+            ? 'Payment saved successfully.'
+            : 'Pembayaran berhasil disimpan.',
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
       return true;
     }
     if (type == 'reminder') {
@@ -699,6 +895,12 @@ class AppProvider extends ChangeNotifier {
         'status': 'menunggu',
       });
       _trackEvent('voice_command_success', extras: {'type': 'reminder'});
+      await _voiceService.speak(
+        _language == 'English'
+            ? 'Reminder added successfully.'
+            : 'Reminder berhasil ditambahkan.',
+        speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+      );
       return true;
     }
     _trackEvent('voice_command_failed', extras: {
@@ -1096,6 +1298,15 @@ class AppProvider extends ChangeNotifier {
           'hari ini',
           'besok',
           'lusa',
+          'nanti',
+          'pagi',
+          'siang',
+          'sore',
+          'malam',
+          'morning',
+          'afternoon',
+          'evening',
+          'night',
           'monday',
           'tuesday',
           'wednesday',
@@ -1261,35 +1472,124 @@ class AppProvider extends ChangeNotifier {
   }
 
   String _detectExpenseCategory(String text) {
-    if (_containsAny(text, const ['makan', 'kopi', 'resto', 'restoran', 'sarapan', 'makan siang', 'makan malam'])) {
+    final normalized = text.toLowerCase();
+    for (final category in _expenseCategories) {
+      final key = category.trim().toLowerCase();
+      if (key.isEmpty || key == 'lainnya') continue;
+      if (normalized.contains(key)) return category;
+    }
+
+    if (_containsAny(normalized, const [
+      'makan',
+      'kopi',
+      'resto',
+      'restoran',
+      'sarapan',
+      'makan siang',
+      'makan malam',
+      'ketoprak',
+      'tetoprak',
+      'nasi',
+      'gorengan',
+      'bakso',
+      'mie',
+      'soto',
+      'pecel',
+      'gado',
+      'ayam',
+      'lauk',
+      'jajan',
+      'snack',
+      'cafe',
+      'warung',
+    ])) {
       return 'Makan';
     }
-    if (_containsAny(text, const ['transport', 'bensin', 'ojek', 'grab', 'gojek', 'parkir', 'tol'])) {
+    if (_containsAny(normalized, const [
+      'transport',
+      'bensin',
+      'ojek',
+      'grab',
+      'gojek',
+      'parkir',
+      'tol',
+      'bus',
+      'kereta',
+      'taksi',
+      'angkot',
+      'bbm',
+      'solar',
+      'pertalite',
+      'pertamax',
+    ])) {
       return 'Transport';
     }
-    if (_containsAny(text, const ['belanja', 'shopping', 'toko', 'baju', 'sepatu'])) {
+    if (_containsAny(normalized, const [
+      'belanja',
+      'shopping',
+      'toko',
+      'baju',
+      'sepatu',
+      'celana',
+      'tas',
+      'kosmetik',
+      'skincare',
+      'minimarket',
+      'supermarket',
+      'marketplace',
+      'online shop',
+    ])) {
       return 'Belanja';
     }
-    if (_containsAny(text, const ['obat', 'dokter', 'rumah sakit', 'klinik', 'kesehatan'])) {
+    if (_containsAny(normalized, const [
+      'obat',
+      'dokter',
+      'rumah sakit',
+      'klinik',
+      'kesehatan',
+      'apotek',
+      'vitamin',
+      'medical',
+      'bpjs',
+      'checkup',
+    ])) {
       return 'Kesehatan';
     }
-    if (_containsAny(text, const ['hiburan', 'film', 'bioskop', 'game', 'netflix'])) {
+    if (_containsAny(normalized, const [
+      'hiburan',
+      'film',
+      'bioskop',
+      'game',
+      'netflix',
+      'spotify',
+      'youtube',
+      'rekreasi',
+      'wisata',
+      'konser',
+    ])) {
       return 'Hiburan';
     }
     return 'Lainnya';
   }
 
   String _detectIncomeCategory(String text) {
-    if (_containsAny(text, const ['gaji', 'salary', 'payroll', 'kantor'])) {
+    final normalized = text.toLowerCase();
+    for (final category in _incomeCategories) {
+      final key = category.trim().toLowerCase();
+      if (key.isEmpty || key == 'lainnya') continue;
+      if (normalized.contains(key)) return category;
+    }
+
+    if (_containsAny(normalized, const ['gaji', 'salary', 'payroll', 'kantor', 'bonus'])) {
       return 'Gaji';
     }
-    if (_containsAny(text, const ['freelance', 'project', 'proyek', 'client'])) {
+    if (_containsAny(normalized, const ['freelance', 'project', 'proyek', 'client', 'jasa'])) {
       return 'Freelance';
     }
-    if (_containsAny(text, const ['bisnis', 'usaha', 'jualan', 'toko'])) {
+    if (_containsAny(normalized, const ['bisnis', 'usaha', 'jualan', 'toko', 'omzet', 'penjualan'])) {
       return 'Bisnis';
     }
-    if (_containsAny(text, const ['investasi', 'dividen', 'saham', 'crypto', 'reksa'])) {
+    if (_containsAny(normalized, const ['investasi', 'dividen', 'saham', 'crypto', 'reksa', 'obligasi'])) {
       return 'Investasi';
     }
     return 'Lainnya';
@@ -2509,12 +2809,29 @@ class AppProvider extends ChangeNotifier {
       _voiceSpeed = prefs.getDouble(_voiceSpeedKey) ?? 1.0;
       _voiceBetaEnabled = prefs.getBool(_voiceBetaEnabledKey) ?? true;
       _voiceConfirmEnabled = prefs.getBool(_voiceConfirmEnabledKey) ?? true;
+      _voiceGreetingEnabled = prefs.getBool(_voiceGreetingEnabledKey) ?? true;
       _profileImagePath = prefs.getString(_profileImagePathKey) ?? '';
       _reminderNotificationsEnabled = prefs.getBool(_reminderNotifsEnabledKey) ?? true;
       _debtNotificationsEnabled = prefs.getBool(_debtNotifsEnabledKey) ?? true;
       _transactionNotificationsEnabled = prefs.getBool(_transactionNotifsEnabledKey) ?? true;
       _transactionSwipeEnabled = prefs.getBool(_transactionSwipeEnabledKey) ?? true;
       _monthlyBudget = prefs.getInt(_monthlyBudgetKey) ?? 0;
+      _expenseCategories = prefs.getStringList(_expenseCategoriesKey) ??
+          List<String>.from(_defaultExpenseCategories);
+      _incomeCategories = prefs.getStringList(_incomeCategoriesKey) ??
+          List<String>.from(_defaultIncomeCategories);
+      if (_expenseCategories.isEmpty) {
+        _expenseCategories = List<String>.from(_defaultExpenseCategories);
+      }
+      if (_incomeCategories.isEmpty) {
+        _incomeCategories = List<String>.from(_defaultIncomeCategories);
+      }
+      if (!_expenseCategories.any((item) => item.toLowerCase() == 'lainnya')) {
+        _expenseCategories.add('Lainnya');
+      }
+      if (!_incomeCategories.any((item) => item.toLowerCase() == 'lainnya')) {
+        _incomeCategories.add('Lainnya');
+      }
       await _loadJsonList(_expensesKey, _expenses);
       await _loadJsonList(_incomesKey, _incomes);
       await _loadJsonList(_debtsKey, _debts);
@@ -2681,7 +2998,17 @@ class AppProvider extends ChangeNotifier {
     await prefs.remove(_incomesKey);
     await prefs.remove(_debtsKey);
     await prefs.remove(_remindersKey);
+    await prefs.remove(_expenseCategoriesKey);
+    await prefs.remove(_incomeCategoriesKey);
+    _expenseCategories = List<String>.from(_defaultExpenseCategories);
+    _incomeCategories = List<String>.from(_defaultIncomeCategories);
     notifyListeners();
+  }
+
+  Future<void> _saveCategorySettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_expenseCategoriesKey, _expenseCategories);
+    await prefs.setStringList(_incomeCategoriesKey, _incomeCategories);
   }
 
   @override

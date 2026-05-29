@@ -17,6 +17,17 @@ void main() {
       expect(result['amount'], 50000);
     });
 
+    test('previewVoiceCommand auto-categorizes food from title keyword', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      final result = provider.previewVoiceCommand('beli ketoprak 15 ribu');
+      expect(result, isNotNull);
+      expect(result!['type'], 'expense');
+      expect(result['category'], 'Makan');
+      expect(result['amount'], 15000);
+    });
+
     test('previewVoiceCommand parses income with category and amount', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();

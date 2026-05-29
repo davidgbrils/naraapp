@@ -9,6 +9,7 @@ import '../../core/theme/nara_radius.dart';
 import '../../core/theme/nara_spacing.dart';
 import '../../core/theme/nara_text_styles.dart';
 import 'package:nara/providers/app_provider.dart';
+import 'package:nara/services/notification_service.dart';
 
 class CreateReminderScreen extends StatefulWidget {
   final int? editIndex;
@@ -32,6 +33,8 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
   String? _selectedSoundUri;
   String? _selectedSoundName;
   bool _didInitLocalizedDefaults = false;
+  ReminderHealthStatus? _reminderHealthStatus;
+  bool _isLoadingReminderHealth = false;
 
   final List<Map<String, dynamic>> _types = [
     {
@@ -114,6 +117,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
         _selectedWeekDays = Set<int>.from(reminder['repeatDays'] as List);
       }
     }
+    _refreshReminderHealthIfNeeded();
   }
 
   Future<void> _pickDate() async {
@@ -166,7 +170,7 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     return '$hour:$minute';
   }
 
-  void _saveReminder() {
+  Future<void> _saveReminder() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       showAppSnackBar(
@@ -180,6 +184,44 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
       return;
     }
 
+    var effectiveType = _selectedType;
+    final isPopupMode =
+        effectiveType == 'Loud Alarm' || effectiveType == 'Fake Call';
+    if (isPopupMode) {
+      final status = await NotificationService().getReminderHealthStatus();
+      final hasNotif = status.notificationsEnabled;
+      final hasExact = status.exactAlarmAllowed;
+      final hasFullScreen = status.fullScreenIntentGranted != false;
+      if (!hasNotif || !hasExact || !hasFullScreen) {
+        if (!mounted) return;
+        final action = await _showPopupPermissionDialog(
+          hasNotif: hasNotif,
+          hasExact: hasExact,
+          hasFullScreen: hasFullScreen,
+        );
+        if (!mounted) return;
+        if (action == 'open_notification') {
+          await NotificationService().openReminderSystemSettings('notification');
+          return;
+        }
+        if (action == 'open_exact') {
+          await NotificationService().openReminderSystemSettings('exact_alarm');
+          return;
+        }
+        if (action == 'open_fullscreen') {
+          await NotificationService().openReminderSystemSettings('fullscreen');
+          return;
+        }
+        if (action == 'fallback_notification') {
+          effectiveType = 'Notification';
+          setState(() => _selectedType = 'Notification');
+        } else {
+          return;
+        }
+      }
+    }
+
+    if (!mounted) return;
     final provider = context.read<AppProvider>();
     final scheduledAt = DateTime(
       _selectedDate.year,
@@ -191,18 +233,18 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
 
     final reminderData = {
       'title': title,
-      'type': _labelForType(context, _selectedType),
+      'type': _labelForType(context, effectiveType),
       'note': _isLinkedToNote ? _noteController.text.trim() : '',
       'date':
           '${_formatDate(context, _selectedDate)} • ${_formatTime(_selectedTime)}',
       'scheduledAt': scheduledAt.toIso8601String(),
       'subtitle':
           '${_formatDate(context, _selectedDate)} • ${_formatTime(_selectedTime)}',
-      'mode': _selectedType,
+      'mode': effectiveType,
       'repeatEnabled': _isRoutineEnabled,
       'repeatDays': _selectedWeekDays.toList()..sort(),
       'linkedToNote': _isLinkedToNote,
-      'icon': _iconForType(_selectedType),
+      'icon': _iconForType(effectiveType),
       'soundUri': _useDefaultSound ? null : _selectedSoundUri,
       'soundName': _useDefaultSound ? null : _selectedSoundName,
       'status': 'menunggu',
@@ -214,7 +256,86 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
       provider.addReminder(reminderData);
     }
 
+    if (!mounted) return;
     Navigator.pop(context);
+  }
+
+  Future<void> _refreshReminderHealthIfNeeded() async {
+    final isPopupMode = _selectedType == 'Loud Alarm' || _selectedType == 'Fake Call';
+    if (!isPopupMode) return;
+    setState(() => _isLoadingReminderHealth = true);
+    final status = await NotificationService().getReminderHealthStatus();
+    if (!mounted) return;
+    setState(() {
+      _reminderHealthStatus = status;
+      _isLoadingReminderHealth = false;
+    });
+  }
+
+  Widget _buildPermissionStatusCard() {
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    final status = _reminderHealthStatus;
+    return NaraCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isEnglish ? 'Popup permission status' : 'Status izin popup',
+                  style: NaraTextStyles.h3,
+                ),
+              ),
+              IconButton(
+                onPressed: _isLoadingReminderHealth ? null : _refreshReminderHealthIfNeeded,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                tooltip: isEnglish ? 'Refresh' : 'Muat ulang',
+              ),
+            ],
+          ),
+          if (_isLoadingReminderHealth)
+            Text(
+              isEnglish ? 'Checking permissions...' : 'Mengecek izin...',
+              style: NaraTextStyles.bodySmall.copyWith(color: NaraColors.textSecondary),
+            )
+          else ...[
+            _permissionRow(
+              label: isEnglish ? 'Notification' : 'Notifikasi',
+              ok: status?.notificationsEnabled == true,
+            ),
+            _permissionRow(
+              label: isEnglish ? 'Exact alarm' : 'Alarm presisi',
+              ok: status?.exactAlarmAllowed == true,
+            ),
+            _permissionRow(
+              label: isEnglish ? 'Full screen intent' : 'Full screen intent',
+              ok: status?.fullScreenIntentGranted != false,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _permissionRow({required String label, required bool ok}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            size: 16,
+            color: ok ? NaraColors.success : NaraColors.danger,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: NaraTextStyles.bodySmall.copyWith(color: NaraColors.textSecondary),
+          ),
+        ],
+      ),
+    );
   }
 
   IconData _iconForType(String type) {
@@ -383,7 +504,10 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                 final color = type['color'] as Color;
 
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedType = mode),
+                  onTap: () {
+                    setState(() => _selectedType = mode);
+                    _refreshReminderHealthIfNeeded();
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(NaraSpacing.md),
                     decoration: BoxDecoration(
@@ -454,6 +578,10 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
                 );
               }).toList(),
             ),
+            if (_selectedType == 'Loud Alarm' || _selectedType == 'Fake Call') ...[
+              const SizedBox(height: NaraSpacing.lg),
+              _buildPermissionStatusCard(),
+            ],
             const SizedBox(height: NaraSpacing.lg),
             NaraCard(
               child: Column(
@@ -629,6 +757,61 @@ class _CreateReminderScreenState extends State<CreateReminderScreen> {
     if (_didInitLocalizedDefaults) return;
     _didInitLocalizedDefaults = true;
     // Keep note empty by default for new reminders.
+  }
+
+  Future<String?> _showPopupPermissionDialog({
+    required bool hasNotif,
+    required bool hasExact,
+    required bool hasFullScreen,
+  }) {
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            isEnglish ? 'Popup reminder needs permission' : 'Popup butuh izin',
+          ),
+          content: Text(
+            isEnglish
+                ? 'Loud Alarm/Fake Call requires notification, exact alarm, and full-screen permissions to show on time.'
+                : 'Alarm Keras/Fake Call butuh izin notifikasi, alarm presisi, dan full-screen agar muncul tepat waktu.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: Text(isEnglish ? 'Cancel' : 'Batal'),
+            ),
+            if (!hasNotif)
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, 'open_notification'),
+                child: Text(isEnglish ? 'Enable Notification' : 'Aktifkan Notifikasi'),
+              ),
+            if (!hasExact)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, 'open_exact'),
+                child: Text(isEnglish ? 'Enable Exact Alarm' : 'Aktifkan Alarm Presisi'),
+              ),
+            if (!hasFullScreen)
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, 'open_fullscreen'),
+                child: Text(isEnglish ? 'Enable Full Screen' : 'Aktifkan Full Screen'),
+              ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, 'fallback_notification'),
+              child: Text(
+                isEnglish
+                    ? 'Save as Notification'
+                    : 'Simpan sebagai Notifikasi',
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override

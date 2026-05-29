@@ -162,6 +162,10 @@ class I18n {
       'no_budget_set': 'Belum ada anggaran ditetapkan',
       'debt_summary': 'Utang / Piutang',
       'expense_categories': 'Kategori Pengeluaran',
+      'income_categories': 'Kategori Pemasukan',
+      'add_expense_category': 'Tambah kategori pengeluaran',
+      'add_income_category': 'Tambah kategori pemasukan',
+      'category_count': '{count} kategori',
       'no_category_data': 'Tidak ada data kategori pada periode ini',
       'summary_sheet': 'Ringkasan',
       'category_sheet': 'Kategori',
@@ -263,6 +267,7 @@ class I18n {
       'voice_button_semantics': 'Tombol aktivasi mikrofon untuk input suara',
       'tap_to_speak': 'Tekan untuk mulai berbicara',
       'hold_to_speak': 'Tahan saat berbicara, lepas untuk proses',
+      'tap_to_talk': 'Tap untuk mulai bicara',
       'made_with_love': 'NARA v1.0.0\nMade with love',
       'reminder_alert_badge': 'PENGINGAT',
       'close': 'Tutup',
@@ -270,6 +275,8 @@ class I18n {
       'voice_beta': 'Voice Beta',
       'voice_confirm': 'Konfirmasi Suara',
       'voice_confirm_subtitle': 'Minta konfirmasi sebelum simpan aksi voice',
+      'voice_greeting': 'Salam Awal Voice',
+      'voice_greeting_subtitle': 'Putar salam saat sesi voice dimulai',
       'voice_beta_off': 'Voice Beta nonaktif',
       'enable_voice_beta': 'Aktifkan Voice Beta',
       'voice_beta_tools_hint':
@@ -462,6 +469,10 @@ class I18n {
       'no_budget_set': 'No budget set yet',
       'debt_summary': 'Debt / Receivable',
       'expense_categories': 'Expense Categories',
+      'income_categories': 'Income Categories',
+      'add_expense_category': 'Add expense category',
+      'add_income_category': 'Add income category',
+      'category_count': '{count} categories',
       'no_category_data': 'No category data for this period',
       'summary_sheet': 'Summary',
       'category_sheet': 'Category',
@@ -563,6 +574,7 @@ class I18n {
       'voice_button_semantics': 'Microphone activation button for voice input',
       'tap_to_speak': 'Tap to start speaking',
       'hold_to_speak': 'Hold while speaking, release to process',
+      'tap_to_talk': 'Tap to start talking',
       'made_with_love': 'NARA v1.0.0\nMade with love',
       'reminder_alert_badge': 'REMINDER',
       'close': 'Close',
@@ -570,6 +582,8 @@ class I18n {
       'voice_beta': 'Voice Beta',
       'voice_confirm': 'Voice Confirmation',
       'voice_confirm_subtitle': 'Ask confirmation before saving voice actions',
+      'voice_greeting': 'Voice Greeting',
+      'voice_greeting_subtitle': 'Play greeting when voice session starts',
       'voice_beta_off': 'Voice Beta is off',
       'enable_voice_beta': 'Enable Voice Beta',
       'voice_beta_tools_hint':
@@ -627,6 +641,7 @@ class I18n {
   }
 
   static String translateCategory(BuildContext context, String raw) {
+    final normalizedRaw = _normalizeCategoryRaw(raw);
     const idToKey = <String, String>{
       'Makan': 'cat_food',
       'Transport': 'cat_transport',
@@ -639,9 +654,32 @@ class I18n {
       'Bisnis': 'cat_business',
       'Investasi': 'cat_investment',
     };
-    final key = idToKey[raw];
-    if (key == null) return raw;
+    final key = idToKey[normalizedRaw];
+    if (key == null) return normalizedRaw;
     return t(context, key);
+  }
+
+  static String _normalizeCategoryRaw(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'Lainnya';
+    final lower = trimmed.toLowerCase();
+    if (lower == 'makan' || lower == 'food') return 'Makan';
+    if (lower == 'transport' ||
+        lower == 'trasnport' ||
+        lower == 'transportasi') {
+      return 'Transport';
+    }
+    if (lower == 'belanja' || lower == 'shopping') return 'Belanja';
+    if (lower == 'kesehatan' || lower == 'health') return 'Kesehatan';
+    if (lower == 'hiburan' || lower == 'entertainment') return 'Hiburan';
+    if (lower == 'gaji' || lower == 'salary') return 'Gaji';
+    if (lower == 'freelance') return 'Freelance';
+    if (lower == 'bisnis' || lower == 'business') return 'Bisnis';
+    if (lower == 'investasi' || lower == 'investment') return 'Investasi';
+    if (lower == 'lainnya' || lower == 'others' || lower == 'other') {
+      return 'Lainnya';
+    }
+    return trimmed;
   }
 
   static String translateRelativeDate(BuildContext context, String raw) {

@@ -361,6 +361,101 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _showManageCategoriesDialog(
+    BuildContext context,
+    AppProvider provider, {
+    required bool isExpense,
+  }) async {
+    final controller = TextEditingController();
+    final title = isExpense
+        ? I18n.t(context, 'expense_categories')
+        : I18n.t(context, 'income_categories');
+    final addLabel = isExpense
+        ? I18n.t(context, 'add_expense_category')
+        : I18n.t(context, 'add_income_category');
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          final categories = isExpense
+              ? provider.expenseCategories
+              : provider.incomeCategories;
+          return AlertDialog(
+            title: Text(title, style: NaraTextStyles.h3),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(
+                      hintText: addLabel,
+                    ),
+                    onSubmitted: (_) async {
+                      final value = controller.text.trim();
+                      if (value.isEmpty) return;
+                      if (isExpense) {
+                        await provider.addExpenseCategory(value);
+                      } else {
+                        await provider.addIncomeCategory(value);
+                      }
+                      controller.clear();
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: NaraSpacing.sm),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: categories.map((item) {
+                      final isOthers = item.toLowerCase() == 'lainnya';
+                      return Chip(
+                        label: Text(I18n.translateCategory(context, item)),
+                        onDeleted: isOthers
+                            ? null
+                            : () async {
+                                if (isExpense) {
+                                  await provider.removeExpenseCategory(item);
+                                } else {
+                                  await provider.removeIncomeCategory(item);
+                                }
+                                setState(() {});
+                              },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(I18n.t(context, 'close'), style: NaraTextStyles.label),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final value = controller.text.trim();
+                  if (value.isNotEmpty) {
+                    if (isExpense) {
+                      await provider.addExpenseCategory(value);
+                    } else {
+                      await provider.addIncomeCategory(value);
+                    }
+                  }
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: Text(I18n.t(context, 'save'), style: NaraTextStyles.label),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _resetActivityFeed(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_hiddenActivityIdsKey);
@@ -635,6 +730,36 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   _SettingsItem(
+                    icon: Icons.category_rounded,
+                    title: I18n.t(context, 'expense_categories'),
+                    subtitle: I18n.t(
+                      context,
+                      'category_count',
+                      params: {'count': '${provider.expenseCategories.length}'},
+                    ),
+                    onTap: () => _showManageCategoriesDialog(
+                      context,
+                      provider,
+                      isExpense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
+                    icon: Icons.payments_rounded,
+                    title: I18n.t(context, 'income_categories'),
+                    subtitle: I18n.t(
+                      context,
+                      'category_count',
+                      params: {'count': '${provider.incomeCategories.length}'},
+                    ),
+                    onTap: () => _showManageCategoriesDialog(
+                      context,
+                      provider,
+                      isExpense: false,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
                     icon: Icons.mic_rounded,
                     title: I18n.t(context, 'voice_settings'),
                     subtitle: '${I18n.t(context, 'speed')} ${provider.voiceSpeed.toStringAsFixed(1)}x',
@@ -662,6 +787,19 @@ class SettingsScreen extends StatelessWidget {
                       value: provider.voiceConfirmEnabled,
                       onChanged: provider.voiceBetaEnabled
                           ? (value) => provider.setVoiceConfirmEnabled(value)
+                          : null,
+                      activeThumbColor: NaraColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
+                    icon: Icons.waving_hand_rounded,
+                    title: I18n.t(context, 'voice_greeting'),
+                    subtitle: I18n.t(context, 'voice_greeting_subtitle'),
+                    trailing: Switch(
+                      value: provider.voiceGreetingEnabled,
+                      onChanged: provider.voiceBetaEnabled
+                          ? (value) => provider.setVoiceGreetingEnabled(value)
                           : null,
                       activeThumbColor: NaraColors.primary,
                     ),

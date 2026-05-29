@@ -22,23 +22,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _amountController = TextEditingController();
   bool _showValidationHint = false;
   String _selectedCategory = 'Makan';
-  final Map<String, String> _categoryIconMap = const {
-    'Makan': 'restaurant',
-    'Transport': 'directions_car',
-    'Belanja': 'shopping_bag',
-    'Kesehatan': 'local_hospital',
-    'Hiburan': 'movie',
-    'Lainnya': 'more_horiz',
-  };
-
-  final List<Map<String, dynamic>> _categories = [
-    {'name': 'Makan', 'icon': Icons.restaurant_rounded, 'color': NaraColors.accentOrange},
-    {'name': 'Transport', 'icon': Icons.directions_car_rounded, 'color': NaraColors.primary},
-    {'name': 'Belanja', 'icon': Icons.shopping_bag_rounded, 'color': NaraColors.accentPurple},
-    {'name': 'Kesehatan', 'icon': Icons.local_hospital_rounded, 'color': NaraColors.danger},
-    {'name': 'Hiburan', 'icon': Icons.movie_rounded, 'color': NaraColors.success},
-    {'name': 'Lainnya', 'icon': Icons.more_horiz_rounded, 'color': NaraColors.textSecondary},
-  ];
   static const Color _requiredFieldFill = Color(0xFFF8FBFF);
   static const Color _requiredFieldBorder = Color(0xFFBFD7FF);
 
@@ -101,7 +84,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       'amount': amount,
       'category': _selectedCategory,
       'time': I18n.t(context, 'today'),
-      'icon': _categoryIconMap[_selectedCategory] ?? 'shopping_bag',
+      'icon': _iconNameForCategory(_selectedCategory),
     });
 
     Navigator.pop(context);
@@ -109,6 +92,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final categories = provider.expenseCategories;
+    if (!categories.contains(_selectedCategory) && categories.isNotEmpty) {
+      _selectedCategory = categories.first;
+    }
     final amountInvalid = _showValidationHint && parseRupiahInput(_amountController.text) <= 0;
     final titleInvalid = _showValidationHint && _titleController.text.trim().isEmpty;
     return Scaffold(
@@ -236,48 +224,26 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             // Category selection
             Text(I18n.t(context, 'category'), style: NaraTextStyles.label.copyWith(color: NaraColors.textSecondary)),
             const SizedBox(height: NaraSpacing.md),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _categories.map((category) {
-                  final isSelected = _selectedCategory == category['name'];
-                  final color = category['color'] as Color;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: NaraSpacing.sm),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedCategory = category['name']),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 140),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? NaraColors.primaryLight : NaraColors.surfaceWhite,
-                          borderRadius: BorderRadius.circular(NaraRadius.pill),
-                          border: Border.all(
-                            color: isSelected ? color.withValues(alpha: 0.6) : NaraColors.textHint.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              category['icon'],
-                              color: isSelected ? color : NaraColors.textSecondary,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              I18n.translateCategory(context, category['name'] as String),
-                              style: NaraTextStyles.caption.copyWith(
-                                color: isSelected ? color : NaraColors.textSecondary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedCategory,
+              items: categories
+                  .map(
+                    (category) => DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(I18n.translateCategory(context, category)),
                     ),
-                  );
-                }).toList(),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedCategory = value);
+              },
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: NaraColors.surfaceWhite,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                ),
               ),
             ),
 
@@ -294,6 +260,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         ),
       ),
     );
+  }
+
+  String _iconNameForCategory(String category) {
+    final lower = category.trim().toLowerCase();
+    if (lower == 'makan' || lower == 'food') return 'restaurant';
+    if (lower == 'transport' || lower == 'trasnport' || lower == 'transportasi') {
+      return 'directions_car';
+    }
+    if (lower == 'belanja' || lower == 'shopping') return 'shopping_bag';
+    if (lower == 'kesehatan' || lower == 'health') return 'local_hospital';
+    if (lower == 'hiburan' || lower == 'entertainment') return 'movie';
+    return 'more_horiz';
   }
 }
 

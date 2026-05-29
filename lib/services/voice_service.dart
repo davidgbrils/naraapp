@@ -23,6 +23,7 @@ class VoiceService implements VoiceServiceContract {
   final FlutterTts _tts = FlutterTts();
   static bool verboseLogs = false;
   bool _isInitialized = false;
+  bool _ttsConfigured = false;
 
   void _log(String message) {
     if (kDebugMode && verboseLogs) {
@@ -69,8 +70,8 @@ class VoiceService implements VoiceServiceContract {
       await _speech.listen(
         listenOptions: SpeechListenOptions(
           localeId: resolvedLocaleId,
-          listenFor: const Duration(seconds: 20),
-          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(seconds: 35),
+          pauseFor: const Duration(seconds: 8),
           partialResults: true,
         ),
         onResult: (result) => onResult(result.recognizedWords, result.finalResult),
@@ -121,6 +122,10 @@ class VoiceService implements VoiceServiceContract {
     final safeText = text.trim();
     if (safeText.isEmpty) return;
     try {
+      if (!_ttsConfigured) {
+        await _tts.awaitSpeakCompletion(true);
+        _ttsConfigured = true;
+      }
       await _tts.setSpeechRate(speed.clamp(0.3, 1.0));
       await _tts.speak(safeText);
     } on MissingPluginException {
