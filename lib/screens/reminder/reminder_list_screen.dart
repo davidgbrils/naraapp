@@ -8,7 +8,6 @@ import '../../core/theme/nara_radius.dart';
 import '../../core/theme/nara_spacing.dart';
 import '../../core/theme/nara_text_styles.dart';
 import '../../providers/app_provider.dart';
-import 'reminder_alert_screen.dart';
 
 class ReminderListScreen extends StatefulWidget {
   final bool openCalendarOnStart;
@@ -134,28 +133,7 @@ class _ReminderListScreenState extends State<ReminderListScreen> {
                                   onAlert: () async {
                                     if (!context.mounted) return;
                                     final reminderIndex = provider.reminders.indexOf(entry.value);
-                                    final mode = provider.normalizeReminderModePublic(
-                                      (entry.value['mode'] as String?) ??
-                                          (entry.value['type'] as String?) ??
-                                          'Notification',
-                                    );
-                                    if (mode == 'Notification') {
-                                      await provider.previewReminderAt(reminderIndex);
-                                      return;
-                                    }
-
-                                    final result = await Navigator.of(context).push<dynamic>(
-                                      MaterialPageRoute(
-                                        builder: (context) => ReminderAlertScreen(
-                                          reminder: entry.value,
-                                          reminderIndex: reminderIndex,
-                                        ),
-                                      ),
-                                    );
-                                    if (!context.mounted) return;
-                                    if (result == true) {
-                                      provider.toggleReminderStatus(reminderIndex);
-                                    }
+                                    await provider.previewReminderAt(reminderIndex);
                                   },
                                   onEdit: () {
                                     Navigator.of(context).push(

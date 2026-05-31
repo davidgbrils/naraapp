@@ -351,21 +351,18 @@ class AppProvider extends ChangeNotifier {
   Map<String, dynamic>? _voiceDraftAction;
   String? _voiceAwaitingField;
   bool _isRestartingVoiceFollowUp = false;
+  bool _voiceSessionCancelled = false;
   String _lastVoicePrompt = '';
   DateTime? _lastVoicePromptAt;
   DateTime? _voiceSuppressInputUntil;
   String _carriedVoiceText = '';
   bool _resumeWithCarry = false;
-  Map<String, dynamic>? _activeAlert;
-  int _alertCountdown = 0;
   
   bool get isListening => _isListening;
   bool get isProcessing => _isProcessing;
   String get lastIntent => _lastIntent;
   String get voiceErrorMessage => _voiceErrorMessage;
   Map<String, dynamic>? get pendingVoiceAction => _pendingVoiceAction;
-  Map<String, dynamic>? get activeAlert => _activeAlert;
-  int get alertCountdown => _alertCountdown;
   bool get isRestartingVoiceFollowUp => _isRestartingVoiceFollowUp;
   bool get hasVoiceFollowUpDraft =>
       _voiceAwaitingField != null && _voiceDraftAction != null;
@@ -380,6 +377,7 @@ class AppProvider extends ChangeNotifier {
       return;
     }
     if (_isListening) return;
+    _voiceSessionCancelled = false;
     _isListening = true;
     _isProcessing = false;
     if (_resumeWithCarry && _carriedVoiceText.trim().isNotEmpty) {
@@ -412,6 +410,13 @@ class AppProvider extends ChangeNotifier {
       onStatus: (status) {
         if (status == 'notListening' || status == 'done') {
           Future.delayed(const Duration(milliseconds: 250), () {
+            if (_voiceSessionCancelled) {
+              _isRestartingVoiceFollowUp = false;
+              _isListening = false;
+              _isProcessing = false;
+              notifyListeners();
+              return;
+            }
             if (_isProcessing) return;
             if (_pendingVoiceAction != null) return;
             final hasFollowUpDraft =
@@ -461,6 +466,7 @@ class AppProvider extends ChangeNotifier {
           _isProcessing = false;
           notifyListeners();
           await Future.delayed(const Duration(milliseconds: 180));
+          if (_voiceSessionCancelled) return;
           _resumeWithCarry = _carriedVoiceText.trim().isNotEmpty;
           await startListening();
           return;
@@ -494,6 +500,7 @@ class AppProvider extends ChangeNotifier {
           );
           _rememberVoicePrompt(prompt);
           await Future.delayed(const Duration(milliseconds: 500));
+          if (_voiceSessionCancelled) return;
           await startListening();
           return;
         }
@@ -618,11 +625,13 @@ class AppProvider extends ChangeNotifier {
   }
   
   Future<void> stopListening() async {
+    _voiceSessionCancelled = true;
     final current = _lastIntent.trim();
     if (current.isNotEmpty && _pendingVoiceAction == null) {
       _carriedVoiceText = current;
       _resumeWithCarry = true;
     }
+    _isRestartingVoiceFollowUp = false;
     await _voiceService.stopListening();
     _isListening = false;
     _isProcessing = false;
@@ -1112,7 +1121,7 @@ class AppProvider extends ChangeNotifier {
         .replaceAll(RegExp(r'\d+[.,]?\d*\s*(ribu|juta|k)?'), '')
         .replaceAll(RegExp(r'(jatuh tempo|tempo|tanggal|tgl).*$'), '')
         .trim();
-    final normalized = cleaned
+    final normalized = _stripLeadingConnectorWords(cleaned)
         .replaceAll(RegExp(r'\s+'), ' ')
         .replaceAll(RegExp(r'^[\-\.,:;]+'), '')
         .replaceAll(RegExp(r'[\-\.,:;]+$'), '')
@@ -1208,7 +1217,7 @@ class AppProvider extends ChangeNotifier {
         .replaceAll('rp', '')
         .replaceAll(RegExp(r'\d+[.,]?\d*\s*(ribu|juta)?'), '')
         .trim();
-    final normalized = cleaned
+    final normalized = _stripLeadingConnectorWords(cleaned)
         .replaceAll(RegExp(r'\s+'), ' ')
         .replaceAll(RegExp(r'^[\-\.,:;]+'), '')
         .replaceAll(RegExp(r'[\-\.,:;]+$'), '')
@@ -1268,11 +1277,26 @@ class AppProvider extends ChangeNotifier {
         .replaceAll('lusa', '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    if (cleaned.isEmpty) return 'Reminder';
-    return cleaned
+    final normalized = _stripLeadingConnectorWords(cleaned).trim();
+    if (normalized.isEmpty) return 'Reminder';
+    return normalized
         .split(RegExp(r'\s+'))
         .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
         .join(' ');
+  }
+
+  String _stripLeadingConnectorWords(String value) {
+    var result = value.trim();
+    result = result.replaceFirst(RegExp(r'^[\-\.,:;]+'), '').trim();
+    while (result.isNotEmpty) {
+      final updated = result.replaceFirst(
+        RegExp(r'^(sama|dengan|ke|untuk)\b[\s\-\.,:;]*', caseSensitive: false),
+        '',
+      ).trim();
+      if (updated == result) break;
+      result = updated;
+    }
+    return result;
   }
 
   DateTime _extractReminderDateTime(String text) {
@@ -1706,41 +1730,6 @@ class AppProvider extends ChangeNotifier {
     );
   }
 
-  void triggerReminderAlert(int reminderIndex) {
-    if (reminderIndex < 0 || reminderIndex >= _reminders.length) return;
-
-    final reminder = Map<String, dynamic>.from(_reminders[reminderIndex]);
-    reminder['mode'] = _normalizeReminderMode(
-      (reminder['mode'] as String?) ?? (reminder['type'] as String?) ?? 'Notification',
-    );
-
-    _activeAlert = reminder..['index'] = reminderIndex;
-    _alertCountdown = 10;
-    notifyListeners();
-  }
-
-  void dismissAlert() {
-    _activeAlert = null;
-    _alertCountdown = 0;
-    notifyListeners();
-  }
-
-  void snoozeAlert(int seconds) {
-    _alertCountdown = seconds;
-    final reminderIndex = _activeAlert?['index'] as int?;
-    if (reminderIndex != null && reminderIndex >= 0 && reminderIndex < _reminders.length) {
-      _snoozeReminderAt(reminderIndex, seconds);
-    }
-    notifyListeners();
-  }
-
-  void updateAlertCountdown() {
-    if (_alertCountdown > 0) {
-      _alertCountdown--;
-      notifyListeners();
-    }
-  }
-  
   // Transactions
   final List<Map<String, dynamic>> _expenses = [];
   
@@ -2556,7 +2545,7 @@ class AppProvider extends ChangeNotifier {
       if (action == 'snooze') {
         _snoozeReminderAt(reminderIndex, 300);
       } else if (action == 'complete') {
-        toggleReminderStatus(reminderIndex);
+        _completeReminderFromAction(reminderIndex);
       }
       return;
     }
@@ -2597,6 +2586,40 @@ class AppProvider extends ChangeNotifier {
     reminder['lastDeliveredScheduleAt'] = reminder['scheduledAt'] as String?;
     reminder['snoozedUntil'] = null;
     _notificationService.cancelPopupAlarm(notificationId);
+  }
+
+  void _completeReminderFromAction(int index) {
+    if (index < 0 || index >= _reminders.length) return;
+    final reminder = _reminders[index];
+    final currentStatus = (reminder['status'] as String? ?? 'menunggu').toLowerCase();
+    final notificationId = _getReminderNotificationId(reminder);
+    final isRoutine = _hasRoutineSchedule(reminder);
+
+    if (currentStatus == 'selesai' && !isRoutine) {
+      _notificationService.cancelReminder(notificationId);
+      _notificationService.cancelPopupAlarm(notificationId);
+      return;
+    }
+
+    if (isRoutine) {
+      final moved = _moveRoutineToNextOccurrence(reminder, DateTime.now());
+      if (moved) {
+        _scheduleReminderNotification(reminder);
+      } else {
+        reminder['status'] = 'selesai';
+        _notificationService.cancelReminder(notificationId);
+        _notificationService.cancelPopupAlarm(notificationId);
+      }
+    } else {
+      reminder['status'] = 'selesai';
+      reminder['lastDeliveredAt'] = DateTime.now().toIso8601String();
+      reminder['lastDeliveredScheduleAt'] = reminder['scheduledAt'] as String?;
+      reminder['snoozedUntil'] = null;
+      _notificationService.cancelReminder(notificationId);
+      _notificationService.cancelPopupAlarm(notificationId);
+    }
+    _saveReminders();
+    notifyListeners();
   }
 
   Future<void> _handleReportNotificationAction(String payload) async {
@@ -3038,8 +3061,6 @@ class AppProvider extends ChangeNotifier {
     _incomes.clear();
     _debts.clear();
     _reminders.clear();
-    _activeAlert = null;
-    _alertCountdown = 0;
     _nextNotificationId = 0;
     _nextDebtId = 0;
 

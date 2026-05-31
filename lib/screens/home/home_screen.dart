@@ -16,7 +16,6 @@ import '../../core/theme/nara_text_styles.dart';
 import '../../components/index.dart';
 import '../../providers/app_provider.dart';
 import '../reminder/reminder_list_screen.dart';
-import '../reminder/reminder_alert_screen.dart';
 import '../voice_overlay/voice_overlay.dart';
 import '../transaction/transaction_screen.dart';
 
@@ -117,7 +116,6 @@ class _HomeShellState extends State<_HomeShell> with WidgetsBindingObserver {
                     const _ProfileContent(),
                   ],
                 ),
-                const _ReminderAlertLauncher(),
                 const _VoiceActionLauncher(),
               ],
             ),
@@ -272,54 +270,6 @@ class _HomeContentState extends State<_HomeContent> {
         ),
         const VoiceOverlay(),
       ],
-    );
-  }
-}
-
-class _ReminderAlertLauncher extends StatefulWidget {
-  const _ReminderAlertLauncher();
-
-  @override
-  State<_ReminderAlertLauncher> createState() => _ReminderAlertLauncherState();
-}
-
-class _ReminderAlertLauncherState extends State<_ReminderAlertLauncher> {
-  int? _lastReminderIndex;
-  bool _isShowing = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AppProvider>(
-      builder: (context, provider, _) {
-        final activeAlert = provider.activeAlert;
-        final reminderIndex = activeAlert?['index'] as int?;
-        if (!_isShowing && activeAlert != null && reminderIndex != _lastReminderIndex) {
-          _lastReminderIndex = reminderIndex;
-          _isShowing = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            if (!mounted || reminderIndex == null) {
-              _isShowing = false;
-              return;
-            }
-
-            final result = await Navigator.of(context).push<dynamic>(
-              MaterialPageRoute(
-                builder: (context) => ReminderAlertScreen(
-                  reminder: activeAlert,
-                  reminderIndex: reminderIndex,
-                ),
-              ),
-            );
-
-            if (!mounted) return;
-            if (result == true) {
-              provider.toggleReminderStatus(reminderIndex);
-            }
-            _isShowing = false;
-          });
-        }
-        return const SizedBox.shrink();
-      },
     );
   }
 }

@@ -30,6 +30,12 @@ class AlarmForegroundService : Service() {
 
   private val handler = Handler(Looper.getMainLooper())
   private val stopRunnable = Runnable { stopSelfSafely() }
+  private var autoSnoozeRunnable: Runnable? = null
+  private var activeReminderId: Int = -1
+  private var activeMode: String = "Loud Alarm"
+  private var activeTitle: String = "Reminder"
+  private var activeBody: String = "Ada pengingat baru untukmu."
+  private var actionHandled: Boolean = false
   private var ringtone: Ringtone? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -39,6 +45,8 @@ class AlarmForegroundService : Service() {
     Log.i(TAG, "onStartCommand action=$action startId=$startId")
     if (action == ACTION_STOP) {
       Log.i(TAG, "stop requested")
+      actionHandled = true
+      clearAutoSnooze()
       stopSelfSafely()
       return START_NOT_STICKY
     }
@@ -51,10 +59,13 @@ class AlarmForegroundService : Service() {
       val mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
       val title = intent?.getStringExtra("title") ?: "Reminder"
       val body = intent?.getStringExtra("body") ?: "Ada pengingat baru untukmu."
+      actionHandled = true
+      clearAutoSnooze()
       if (action == ACTION_SNOOZE) {
         scheduleNativeSnooze(reminderId, mode, title, body, 5 * 60 * 1000L)
         notifyFlutterAction(reminderId, "snooze")
       } else {
+        cancelNativePopupAlarm(reminderId)
         notifyFlutterAction(reminderId, "complete")
       }
       clearNotification(reminderId)
@@ -75,6 +86,11 @@ class AlarmForegroundService : Service() {
     val mode = intent.getStringExtra("mode") ?: "Loud Alarm"
     val title = intent.getStringExtra("title") ?: "Reminder"
     val body = intent.getStringExtra("body") ?: "Ada pengingat baru untukmu."
+    activeReminderId = reminderId
+    activeMode = mode
+    activeTitle = title
+    activeBody = body
+    actionHandled = false
 
     ensureChannel()
     val completeIntent = Intent(this, AlarmForegroundService::class.java).apply {
@@ -132,20 +148,21 @@ class AlarmForegroundService : Service() {
       return START_NOT_STICKY
     }
 
-    handler.postDelayed(
-      {
-        try {
-          scheduleNativeSnooze(reminderId, mode, title, body, 5 * 60 * 1000L)
-          notifyFlutterAction(reminderId, "snooze")
-          clearNotification(reminderId)
-          stopSelfSafely()
-          Log.i(TAG, "auto snooze executed id=$reminderId")
-        } catch (e: Exception) {
-          Log.e(TAG, "auto snooze failed id=$reminderId", e)
-        }
-      },
-      60_000L,
-    )
+    clearAutoSnooze()
+    autoSnoozeRunnable = Runnable {
+      if (actionHandled || reminderId != activeReminderId) return@Runnable
+      try {
+        scheduleNativeSnooze(reminderId, mode, title, body, 5 * 60 * 1000L)
+        notifyFlutterAction(reminderId, "snooze")
+        clearNotification(reminderId)
+        actionHandled = true
+        stopSelfSafely()
+        Log.i(TAG, "auto snooze executed id=$reminderId")
+      } catch (e: Exception) {
+        Log.e(TAG, "auto snooze failed id=$reminderId", e)
+      }
+    }
+    handler.postDelayed(autoSnoozeRunnable!!, 60_000L)
 
     handler.removeCallbacks(stopRunnable)
     handler.postDelayed(stopRunnable, 180_000L)
@@ -153,6 +170,7 @@ class AlarmForegroundService : Service() {
   }
 
   override fun onDestroy() {
+    clearAutoSnooze()
     handler.removeCallbacks(stopRunnable)
     stopAlarmSound()
     super.onDestroy()
@@ -160,9 +178,15 @@ class AlarmForegroundService : Service() {
 
   private fun stopSelfSafely() {
     Log.i(TAG, "stopSelfSafely")
+    clearAutoSnooze()
     stopAlarmSound()
     stopForeground(STOP_FOREGROUND_REMOVE)
     stopSelf()
+  }
+
+  private fun clearAutoSnooze() {
+    autoSnoozeRunnable?.let { handler.removeCallbacks(it) }
+    autoSnoozeRunnable = null
   }
 
   private fun startAlarmSound() {
@@ -225,6 +249,28 @@ class AlarmForegroundService : Service() {
       putExtra("reminder_id", reminderId)
     }
     startActivity(launchIntent)
+  }
+
+  private fun cancelNativePopupAlarm(reminderId: Int) {
+    try {
+      val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
+        action = "com.nara.app.POPUP_REMINDER_ALARM"
+        putExtra("reminder_id", reminderId)
+        putExtra("mode", activeMode)
+        putExtra("title", activeTitle)
+        putExtra("body", activeBody)
+      }
+      val pendingIntent = PendingIntent.getBroadcast(
+        this,
+        reminderId,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      )
+      alarmManager.cancel(pendingIntent)
+    } catch (e: Exception) {
+      Log.e(TAG, "cancelNativePopupAlarm failed id=$reminderId", e)
+    }
   }
 
   private fun clearNotification(reminderId: Int) {

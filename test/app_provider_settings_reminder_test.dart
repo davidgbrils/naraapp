@@ -66,7 +66,7 @@ void main() {
   });
 
   group('AppProvider reminder behavior', () {
-    test('snoozeAlert updates scheduledAt and snoozedUntil', () {
+    test('snoozeReminderByIndex updates scheduledAt and snoozedUntil', () {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();
 
@@ -78,8 +78,7 @@ void main() {
         'status': 'menunggu',
       });
 
-      provider.triggerReminderAlert(0);
-      provider.snoozeAlert(300);
+      provider.snoozeReminderByIndex(0, seconds: 300);
 
       final reminder = provider.reminders[0];
       expect(reminder['snoozedUntil'], isNotNull);
@@ -87,4 +86,3 @@ void main() {
     });
   });
 }
-

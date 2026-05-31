@@ -12,7 +12,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('foreground reminder fallback triggers in-app alert for loud alarm', () async {
+  test('foreground reminder fallback schedules popup alarm for loud alarm', () async {
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(popupAlarmChannel, (call) async {
@@ -38,14 +38,9 @@ void main() {
       'soundName': null,
       'status': 'menunggu',
     });
-    provider.setAppInForeground(true);
-    calls.clear();
-
     await provider.runReminderFallbackCheckForTest();
 
-    expect(provider.activeAlert, isNotNull);
-    expect((provider.activeAlert?['mode'] as String?) ?? '', 'Loud Alarm');
-    expect(calls.where((c) => c.method == 'schedulePopupAlarm'), isEmpty);
+    expect(calls.any((c) => c.method == 'schedulePopupAlarm'), isTrue);
   });
 
   test('background reminder fallback schedules popup alarm (system)', () async {
@@ -58,13 +53,13 @@ void main() {
 
     final provider = AppProvider();
     provider.reminders.insert(0, {
-      'title': 'Tes Fake Call',
+      'title': 'Tes Loud Alarm 2',
       'type': 'Notifikasi',
       'note': '',
       'date': 'Hari ini',
       'scheduledAt': DateTime.now().subtract(const Duration(minutes: 1)).toIso8601String(),
       'subtitle': 'Tes',
-      'mode': 'Fake Call',
+      'mode': 'Loud Alarm',
       'repeatEnabled': false,
       'repeatDays': const <int>[],
       'linkedToNote': true,
@@ -74,11 +69,8 @@ void main() {
       'soundName': null,
       'status': 'menunggu',
     });
-    provider.setAppInForeground(false);
-
     await provider.runReminderFallbackCheckForTest();
 
-    expect(provider.activeAlert, isNull);
     expect(calls.any((c) => c.method == 'schedulePopupAlarm'), isTrue);
   });
 

@@ -51,6 +51,28 @@ void main() {
       expect(result['amount'], 200000);
     });
 
+    test('previewVoiceCommand strips leading "sama" from debt person name', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      final result = provider.previewVoiceCommand('catat utang sama wino 20 ribu');
+      expect(result, isNotNull);
+      expect(result!['type'], 'debt');
+      expect(result['title'], 'Wino');
+      expect(result['amount'], 20000);
+    });
+
+    test('previewVoiceCommand strips leading "untuk" from debt person name', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      final result = provider.previewVoiceCommand('catat utang untuk wino 20 ribu');
+      expect(result, isNotNull);
+      expect(result!['type'], 'debt');
+      expect(result['title'], 'Wino');
+      expect(result['amount'], 20000);
+    });
+
     test('previewVoiceCommand keeps zero amount for validation flow', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();
@@ -59,6 +81,17 @@ void main() {
       expect(result, isNotNull);
       expect(result!['type'], 'expense');
       expect(result['amount'], 0);
+    });
+
+    test('previewVoiceCommand strips leading connector from expense title', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      final result = provider.previewVoiceCommand('catat pengeluaran untuk makan 10 ribu');
+      expect(result, isNotNull);
+      expect(result!['type'], 'expense');
+      expect(result['title'], 'Makan');
+      expect(result['amount'], 10000);
     });
 
     test('previewVoiceCommand parses negative amount', () async {
@@ -73,7 +106,7 @@ void main() {
       expect(result['amount'], -50000);
     });
 
-    test('previewVoiceCommand parses reminder mode fake call', () async {
+    test('previewVoiceCommand leaves mode empty when unsupported reminder mode is spoken', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();
 
@@ -82,7 +115,7 @@ void main() {
       );
       expect(result, isNotNull);
       expect(result!['type'], 'reminder');
-      expect(result['mode'], 'Fake Call');
+      expect(result['mode'], isNull);
       expect(result['scheduledAt'], isA<DateTime>());
     });
 
