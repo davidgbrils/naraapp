@@ -16,6 +16,8 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
   private val popupAlarmChannel = "nara/reminder_popup_alarm"
+  private val alarmStatePrefs = "nara_alarm_state"
+  private val completedAlarmIdsKey = "completed_popup_alarm_ids"
   private var popupChannel: MethodChannel? = null
   private var pendingPopupReminderId: Int? = null
   private var latestPopupReminderId: Int? = null
@@ -116,6 +118,7 @@ class MainActivity : FlutterActivity() {
     title: String,
     body: String
   ) {
+    clearNativeCompletedAlarm(id)
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val pendingIntent = popupPendingIntent(id, mode, title, body)
     val showIntent = PendingIntent.getActivity(
@@ -138,6 +141,7 @@ class MainActivity : FlutterActivity() {
   private fun cancelPopupAlarm(id: Int) {
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(popupBroadcastPendingIntent(id))
+    markNativeCompletedAlarm(id)
   }
 
   private fun popupPendingIntent(
@@ -210,6 +214,23 @@ class MainActivity : FlutterActivity() {
     val channel = popupChannel ?: return
     channel.invokeMethod("onPopupAlarmAction", actionPayload)
     pendingPopupAction = null
+  }
+
+  private fun markNativeCompletedAlarm(id: Int) {
+    val prefs = getSharedPreferences(alarmStatePrefs, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(completedAlarmIdsKey, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    ids.add(id.toString())
+    prefs.edit().putStringSet(completedAlarmIdsKey, ids).apply()
+  }
+
+  private fun clearNativeCompletedAlarm(id: Int) {
+    val prefs = getSharedPreferences(alarmStatePrefs, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(completedAlarmIdsKey, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    if (ids.remove(id.toString())) {
+      prefs.edit().putStringSet(completedAlarmIdsKey, ids).apply()
+    }
   }
 
   private fun openReminderSystemSettings(target: String) {

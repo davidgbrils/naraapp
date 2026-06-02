@@ -27,14 +27,18 @@ import android.util.Log
 class AlarmAlertActivity : Activity() {
   companion object {
     private const val TAG = "AlarmAlertActivity"
+    private const val ALARM_STATE_PREFS = "nara_alarm_state"
+    private const val COMPLETED_ALARM_IDS_KEY = "completed_popup_alarm_ids"
   }
   private var reminderId: Int = -1
   private var mode: String = "Loud Alarm"
   private var title: String = "Reminder"
   private var body: String = "Ada pengingat baru untukmu."
   private var ringtone: Ringtone? = null
+  private var actionHandled: Boolean = false
   private val handler = Handler(Looper.getMainLooper())
   private val autoSnoozeRunnable = Runnable {
+    if (actionHandled) return@Runnable
     handleSnooze()
   }
 
@@ -269,6 +273,10 @@ class AlarmAlertActivity : Activity() {
 
   private fun handleComplete() {
     Log.i(TAG, "handleComplete id=$reminderId")
+    actionHandled = true
+    handler.removeCallbacks(autoSnoozeRunnable)
+    markNativeCompletedAlarm()
+    cancelNativePopupAlarm()
     stopAlarmSound()
     clearNotification()
     stopAlarmService()
@@ -278,6 +286,9 @@ class AlarmAlertActivity : Activity() {
 
   private fun handleSnooze() {
     Log.i(TAG, "handleSnooze id=$reminderId")
+    actionHandled = true
+    handler.removeCallbacks(autoSnoozeRunnable)
+    clearNativeCompletedAlarm()
     stopAlarmSound()
     clearNotification()
     scheduleNativeSnooze(5 * 60 * 1000L)
@@ -292,6 +303,7 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun scheduleNativeSnooze(delayMillis: Long) {
+    clearNativeCompletedAlarm()
     val triggerAt = System.currentTimeMillis() + delayMillis
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
@@ -339,11 +351,51 @@ class AlarmAlertActivity : Activity() {
   private fun stopAlarmService() {
     val stopIntent = Intent(this, AlarmForegroundService::class.java).apply {
       action = AlarmForegroundService.ACTION_STOP
+      putExtra("reminder_id", reminderId)
     }
     try {
       startService(stopIntent)
     } catch (e: Exception) {
       Log.e(TAG, "failed to stop foreground service", e)
+    }
+  }
+
+  private fun cancelNativePopupAlarm() {
+    try {
+      val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+      val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
+        action = "com.nara.app.POPUP_REMINDER_ALARM"
+        putExtra("reminder_id", reminderId)
+        putExtra("mode", mode)
+        putExtra("title", title)
+        putExtra("body", body)
+      }
+      val pendingIntent = PendingIntent.getBroadcast(
+        this,
+        reminderId,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      )
+      alarmManager.cancel(pendingIntent)
+    } catch (e: Exception) {
+      Log.e(TAG, "failed to cancel native popup alarm", e)
+    }
+  }
+
+  private fun markNativeCompletedAlarm() {
+    val prefs = getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    ids.add(reminderId.toString())
+    prefs.edit().putStringSet(COMPLETED_ALARM_IDS_KEY, ids).apply()
+  }
+
+  private fun clearNativeCompletedAlarm() {
+    val prefs = getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    if (ids.remove(reminderId.toString())) {
+      prefs.edit().putStringSet(COMPLETED_ALARM_IDS_KEY, ids).apply()
     }
   }
 

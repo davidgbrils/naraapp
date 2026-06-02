@@ -26,6 +26,8 @@ class AlarmForegroundService : Service() {
     private const val ACTION_COMPLETE = "com.nara.app.action.COMPLETE_ALARM"
     private const val CHANNEL_ID = "native_alarm_foreground_channel_v1"
     private const val NOTIF_ID = 49001
+    private const val ALARM_STATE_PREFS = "nara_alarm_state"
+    private const val COMPLETED_ALARM_IDS_KEY = "completed_popup_alarm_ids"
   }
 
   private val handler = Handler(Looper.getMainLooper())
@@ -62,9 +64,11 @@ class AlarmForegroundService : Service() {
       actionHandled = true
       clearAutoSnooze()
       if (action == ACTION_SNOOZE) {
+        clearNativeCompletedAlarm(reminderId)
         scheduleNativeSnooze(reminderId, mode, title, body, 5 * 60 * 1000L)
         notifyFlutterAction(reminderId, "snooze")
       } else {
+        markNativeCompletedAlarm(reminderId)
         cancelNativePopupAlarm(reminderId)
         notifyFlutterAction(reminderId, "complete")
       }
@@ -80,6 +84,12 @@ class AlarmForegroundService : Service() {
     val reminderId = intent.getIntExtra("reminder_id", -1)
     if (reminderId < 0) {
       Log.w(TAG, "invalid reminderId, stopping")
+      stopSelfSafely()
+      return START_NOT_STICKY
+    }
+    if (isNativeCompletedAlarm(reminderId)) {
+      Log.i(TAG, "ignoring completed alarm id=$reminderId")
+      clearNotification(reminderId)
       stopSelfSafely()
       return START_NOT_STICKY
     }
@@ -220,6 +230,7 @@ class AlarmForegroundService : Service() {
     body: String,
     delayMillis: Long
   ) {
+    clearNativeCompletedAlarm(reminderId)
     val triggerAt = System.currentTimeMillis() + delayMillis
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(this, ReminderPopupAlarmReceiver::class.java).apply {
@@ -271,6 +282,29 @@ class AlarmForegroundService : Service() {
     } catch (e: Exception) {
       Log.e(TAG, "cancelNativePopupAlarm failed id=$reminderId", e)
     }
+  }
+
+  private fun markNativeCompletedAlarm(reminderId: Int) {
+    val prefs = getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    ids.add(reminderId.toString())
+    prefs.edit().putStringSet(COMPLETED_ALARM_IDS_KEY, ids).apply()
+  }
+
+  private fun clearNativeCompletedAlarm(reminderId: Int) {
+    val prefs = getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())?.toMutableSet()
+      ?: mutableSetOf()
+    if (ids.remove(reminderId.toString())) {
+      prefs.edit().putStringSet(COMPLETED_ALARM_IDS_KEY, ids).apply()
+    }
+  }
+
+  private fun isNativeCompletedAlarm(reminderId: Int): Boolean {
+    val prefs = getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    return prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())
+      ?.contains(reminderId.toString()) == true
   }
 
   private fun clearNotification(reminderId: Int) {

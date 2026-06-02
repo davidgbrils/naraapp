@@ -10,11 +10,17 @@ import android.util.Log
 class ReminderPopupAlarmReceiver : BroadcastReceiver() {
   companion object {
     private const val TAG = "ReminderPopupAlarm"
+    private const val ALARM_STATE_PREFS = "nara_alarm_state"
+    private const val COMPLETED_ALARM_IDS_KEY = "completed_popup_alarm_ids"
   }
 
   override fun onReceive(context: Context, intent: Intent?) {
     val reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
     if (reminderId < 0) return
+    if (isNativeCompletedAlarm(context, reminderId)) {
+      Log.i(TAG, "ignored completed popup alarm id=$reminderId")
+      return
+    }
 
     val mode = intent?.getStringExtra("mode") ?: "Loud Alarm"
     val title = intent?.getStringExtra("title") ?: "Reminder"
@@ -53,5 +59,11 @@ class ReminderPopupAlarmReceiver : BroadcastReceiver() {
     } catch (e: Exception) {
       Log.e(TAG, "Failed starting alarm foreground flow for reminderId=$reminderId", e)
     }
+  }
+
+  private fun isNativeCompletedAlarm(context: Context, reminderId: Int): Boolean {
+    val prefs = context.getSharedPreferences(ALARM_STATE_PREFS, Context.MODE_PRIVATE)
+    return prefs.getStringSet(COMPLETED_ALARM_IDS_KEY, emptySet())
+      ?.contains(reminderId.toString()) == true
   }
 }

@@ -2212,7 +2212,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     final startOfNextWeek = startOfWeek.add(const Duration(days: 7));
 
     return items.where((item) {
-      final createdAt = DateUtils.dateOnly((item['createdAt'] as DateTime?) ?? DateTime.now());
+      final createdAt = DateUtils.dateOnly(_coerceCreatedAt(item['createdAt']));
       switch (preset) {
         case _TransactionFilterPreset.week:
           return !createdAt.isBefore(startOfWeek) && createdAt.isBefore(startOfNextWeek);
@@ -2259,12 +2259,22 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
       return DateUtils.dateOnly(aDue).compareTo(DateUtils.dateOnly(bDue));
     }
 
-    final aCreated = DateTime.tryParse((a['createdAt'] as String?) ?? '');
-    final bCreated = DateTime.tryParse((b['createdAt'] as String?) ?? '');
+    final aCreated = _tryCoerceCreatedAt(a['createdAt']);
+    final bCreated = _tryCoerceCreatedAt(b['createdAt']);
     if (aCreated != null && bCreated != null) {
       return bCreated.compareTo(aCreated);
     }
     return 0;
+  }
+
+  DateTime _coerceCreatedAt(dynamic raw) {
+    return _tryCoerceCreatedAt(raw) ?? DateTime.now();
+  }
+
+  DateTime? _tryCoerceCreatedAt(dynamic raw) {
+    if (raw is DateTime) return raw;
+    if (raw is String) return DateTime.tryParse(raw);
+    return null;
   }
 
   DateTime? _parseDebtDueDate(String raw) {

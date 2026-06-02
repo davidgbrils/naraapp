@@ -352,6 +352,7 @@ class AppProvider extends ChangeNotifier {
   String? _voiceAwaitingField;
   bool _isRestartingVoiceFollowUp = false;
   bool _voiceSessionCancelled = false;
+  int _voiceSessionId = 0;
   String _lastVoicePrompt = '';
   DateTime? _lastVoicePromptAt;
   DateTime? _voiceSuppressInputUntil;
@@ -378,6 +379,7 @@ class AppProvider extends ChangeNotifier {
     }
     if (_isListening) return;
     _voiceSessionCancelled = false;
+    final sessionId = ++_voiceSessionId;
     _isListening = true;
     _isProcessing = false;
     if (_resumeWithCarry && _carriedVoiceText.trim().isNotEmpty) {
@@ -403,14 +405,17 @@ class AppProvider extends ChangeNotifier {
       );
       _rememberVoicePrompt(greeting);
       await Future.delayed(const Duration(milliseconds: 350));
+      if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
     }
+    _voiceSuppressInputUntil = null;
     final localeId = isEnglish ? 'en_US' : 'id_ID';
     final isReady = await _voiceService.startListening(
       localeId: localeId,
       onStatus: (status) {
+        if (sessionId != _voiceSessionId) return;
         if (status == 'notListening' || status == 'done') {
           Future.delayed(const Duration(milliseconds: 250), () {
-            if (_voiceSessionCancelled) {
+            if (_voiceSessionCancelled || sessionId != _voiceSessionId) {
               _isRestartingVoiceFollowUp = false;
               _isListening = false;
               _isProcessing = false;
@@ -427,6 +432,10 @@ class AppProvider extends ChangeNotifier {
               _isProcessing = false;
               notifyListeners();
               Future.delayed(const Duration(milliseconds: 180), () async {
+                if (_voiceSessionCancelled || sessionId != _voiceSessionId) {
+                  _isRestartingVoiceFollowUp = false;
+                  return;
+                }
                 try {
                   await startListening();
                 } finally {
@@ -442,12 +451,14 @@ class AppProvider extends ChangeNotifier {
         }
       },
       onError: (error) {
+        if (sessionId != _voiceSessionId) return;
         _voiceErrorMessage = error;
         _isListening = false;
         _isProcessing = false;
         notifyListeners();
       },
       onResult: (recognizedWords, isFinal) async {
+        if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
         final text = recognizedWords.trim();
         if (text.isEmpty) return;
         final suppressUntil = _voiceSuppressInputUntil;
@@ -466,7 +477,7 @@ class AppProvider extends ChangeNotifier {
           _isProcessing = false;
           notifyListeners();
           await Future.delayed(const Duration(milliseconds: 180));
-          if (_voiceSessionCancelled) return;
+          if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
           _resumeWithCarry = _carriedVoiceText.trim().isNotEmpty;
           await startListening();
           return;
@@ -500,7 +511,7 @@ class AppProvider extends ChangeNotifier {
           );
           _rememberVoicePrompt(prompt);
           await Future.delayed(const Duration(milliseconds: 500));
-          if (_voiceSessionCancelled) return;
+          if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
           await startListening();
           return;
         }
@@ -547,6 +558,7 @@ class AppProvider extends ChangeNotifier {
     );
 
     if (isReady) return;
+    if (sessionId != _voiceSessionId) return;
     _voiceErrorMessage = isEnglish
         ? 'Microphone permission is denied or speech service is unavailable.'
         : 'Izin mikrofon ditolak atau layanan suara tidak tersedia.';
@@ -592,6 +604,8 @@ class AppProvider extends ChangeNotifier {
       'command not recognized',
       'lengkapi informasi',
       'complete missing information',
+      'ingin mencatat apa',
+      'what would you like to record',
       'halo $user',
       'hello $user',
       'kamu maunya',
@@ -626,11 +640,9 @@ class AppProvider extends ChangeNotifier {
   
   Future<void> stopListening() async {
     _voiceSessionCancelled = true;
-    final current = _lastIntent.trim();
-    if (current.isNotEmpty && _pendingVoiceAction == null) {
-      _carriedVoiceText = current;
-      _resumeWithCarry = true;
-    }
+    _voiceSessionId++;
+    _carriedVoiceText = '';
+    _resumeWithCarry = false;
     _isRestartingVoiceFollowUp = false;
     await _voiceService.stopListening();
     _isListening = false;
@@ -982,6 +994,11 @@ class AppProvider extends ChangeNotifier {
   Map<String, dynamic>? _buildPendingVoiceAction(String rawText) {
     final text = rawText.toLowerCase().trim();
     if (text.isEmpty) return null;
+    if (_isBareRecordIntent(text)) {
+      return {
+        'type': 'record',
+      };
+    }
 
     final amount = _parseVoiceAmount(text);
     final isDebtPayment = _containsAny(text, const [
@@ -1055,6 +1072,43 @@ class AppProvider extends ChangeNotifier {
       return {
         'type': 'income',
         'title': _extractVoiceTitle(text, fallback: 'Pemasukan'),
+        'amount': amount,
+        'category': category,
+      };
+    }
+    return null;
+  }
+
+  bool _isBareRecordIntent(String text) {
+    final normalized = text
+        .replaceAll(RegExp(r'[^a-zA-Z\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return normalized == 'catat' ||
+        normalized == 'catatin' ||
+        normalized == 'tolong catat' ||
+        normalized == 'record' ||
+        normalized == 'please record';
+  }
+
+  Map<String, dynamic>? _buildRecordDetailAction(String answer) {
+    final detail = answer.trim();
+    if (detail.isEmpty) return null;
+
+    final direct = _buildPendingVoiceAction(detail);
+    if (direct != null && direct['type'] != 'record') return direct;
+
+    final withRecordVerb = _buildPendingVoiceAction('catat $detail');
+    if (withRecordVerb != null && withRecordVerb['type'] != 'record') {
+      return withRecordVerb;
+    }
+
+    final amount = _parseVoiceAmount(detail.toLowerCase());
+    if (amount > 0) {
+      final category = _detectExpenseCategory(detail);
+      return {
+        'type': 'expense',
+        'title': _extractVoiceTitle(detail, fallback: 'Pengeluaran'),
         'amount': amount,
         'category': category,
       };
@@ -1406,6 +1460,7 @@ class AppProvider extends ChangeNotifier {
 
   String? _nextMissingField(Map<String, dynamic> action) {
     final type = action['type'] as String? ?? '';
+    if (type == 'record') return 'record_detail';
     if (type == 'reminder') {
       final title = (action['title'] as String?)?.trim() ?? '';
       final scheduledAt = action['scheduledAt'] as DateTime?;
@@ -1443,6 +1498,10 @@ class AppProvider extends ChangeNotifier {
 
   String _friendlyPromptForField(String field, bool isEnglish) {
     switch (field) {
+      case 'record_detail':
+        return isEnglish
+            ? 'What would you like to record?'
+            : 'Ingin mencatat apa?';
       case 'reminder_title':
         return isEnglish
             ? 'Sure. What should I remind you about? For example: pay electricity bill.'
@@ -1506,6 +1565,8 @@ class AppProvider extends ChangeNotifier {
     final next = Map<String, dynamic>.from(draft);
     final text = answer.toLowerCase().trim();
     switch (field) {
+      case 'record_detail':
+        return _buildRecordDetailAction(answer) ?? next;
       case 'reminder_title':
         next['title'] = _extractReminderTitle(text);
         break;

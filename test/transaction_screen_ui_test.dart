@@ -49,4 +49,38 @@ void main() {
     expect(find.text('Income'), findsOneWidget);
     expect(find.text('Debt/Receivable'), findsOneWidget);
   });
+
+  testWidgets('Transaction screen accepts DateTime and String createdAt values', (tester) async {
+    final provider = AppProvider();
+    provider.addExpense({
+      'title': 'DateTime Expense',
+      'amount': 12000,
+      'category': 'Makan',
+      'createdAt': DateTime.now(),
+    });
+    provider.addIncome({
+      'title': 'String Income',
+      'amount': 20000,
+      'category': 'Gaji',
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+    provider.addDebt({
+      'title': 'Mixed Debt',
+      'amount': 30000,
+      'type': 'utang',
+      'date': 'Hari ini',
+      'createdAt': DateTime.now(),
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: TransactionScreen()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Pengeluaran'), findsOneWidget);
+  });
 }

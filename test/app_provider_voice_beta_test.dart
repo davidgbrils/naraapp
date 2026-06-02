@@ -7,8 +7,8 @@ class _FakeVoiceService implements VoiceServiceContract {
   int speakCalls = 0;
   int startListeningCalls = 0;
   String lastSpokenText = '';
-  void Function(String recognizedWords, bool isFinal)? _onResult;
-  void Function(String status)? _onStatus;
+  final List<void Function(String recognizedWords, bool isFinal)> _onResults = [];
+  final List<void Function(String status)> _onStatuses = [];
 
   @override
   Future<void> dispose() async {}
@@ -27,17 +27,27 @@ class _FakeVoiceService implements VoiceServiceContract {
     void Function(String error)? onError,
   }) async {
     startListeningCalls++;
-    _onResult = onResult;
-    _onStatus = onStatus;
+    _onResults.add(onResult);
+    if (onStatus != null) _onStatuses.add(onStatus);
     return true;
   }
 
   void emitResult(String recognizedWords, {bool isFinal = true}) {
-    _onResult?.call(recognizedWords, isFinal);
+    emitResultForSession(_onResults.length - 1, recognizedWords, isFinal: isFinal);
+  }
+
+  void emitResultForSession(int index, String recognizedWords, {bool isFinal = true}) {
+    if (index < 0 || index >= _onResults.length) return;
+    _onResults[index].call(recognizedWords, isFinal);
   }
 
   void emitStatus(String status) {
-    _onStatus?.call(status);
+    emitStatusForSession(_onStatuses.length - 1, status);
+  }
+
+  void emitStatusForSession(int index, String status) {
+    if (index < 0 || index >= _onStatuses.length) return;
+    _onStatuses[index].call(status);
   }
 
   @override
@@ -138,6 +148,62 @@ void main() {
 
       expect(provider.isListening, false);
       expect(fakeVoice.startListeningCalls, 1);
+    });
+
+    test('startListening works again after cancel and ignores stale callbacks', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fakeVoice = _FakeVoiceService();
+      final provider = AppProvider(voiceService: fakeVoice);
+
+      await provider.setVoiceBetaEnabled(true);
+      await provider.startListening(greet: true);
+      expect(provider.isListening, true);
+      expect(fakeVoice.speakCalls, 1);
+
+      await provider.stopListening();
+      expect(provider.isListening, false);
+
+      await provider.startListening(greet: true);
+      expect(provider.isListening, true);
+      expect(fakeVoice.startListeningCalls, 2);
+      expect(fakeVoice.speakCalls, 2);
+
+      fakeVoice.emitStatusForSession(0, 'done');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(provider.isListening, true);
+
+      fakeVoice.emitResult('catat pengeluaran makan 10 ribu', isFinal: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.pendingVoiceAction, isNotNull);
+      expect(provider.pendingVoiceAction?['type'], 'expense');
+      expect(provider.isListening, false);
+    });
+
+    test('bare catat asks what to record then parses the follow-up answer', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fakeVoice = _FakeVoiceService();
+      final provider = AppProvider(voiceService: fakeVoice);
+
+      await provider.setVoiceBetaEnabled(true);
+      await provider.startListening();
+      expect(fakeVoice.startListeningCalls, 1);
+
+      fakeVoice.emitResult('catat', isFinal: true);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
+      expect(fakeVoice.lastSpokenText, 'Ingin mencatat apa?');
+      expect(provider.pendingVoiceAction, isNull);
+      expect(fakeVoice.startListeningCalls, 2);
+      expect(provider.isListening, true);
+
+      fakeVoice.emitResult('makan 10 ribu', isFinal: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.pendingVoiceAction, isNotNull);
+      expect(provider.pendingVoiceAction?['type'], 'expense');
+      expect(provider.pendingVoiceAction?['title'], 'Makan');
+      expect(provider.pendingVoiceAction?['amount'], 10000);
     });
   });
 }

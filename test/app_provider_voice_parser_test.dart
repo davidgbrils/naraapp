@@ -6,6 +6,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('AppProvider voice parser', () {
+    test('previewVoiceCommand treats bare catat as record follow-up intent', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      final result = provider.previewVoiceCommand('catat');
+      expect(result, isNotNull);
+      expect(result!['type'], 'record');
+    });
+
     test('previewVoiceCommand parses expense with category and amount', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();
