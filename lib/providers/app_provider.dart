@@ -409,6 +409,88 @@ class AppProvider extends ChangeNotifier {
     }
     _voiceSuppressInputUntil = null;
     final localeId = isEnglish ? 'en_US' : 'id_ID';
+    var finalResultHandled = false;
+
+    Future<void> handleFinalVoiceText(String finalText) async {
+      if (finalResultHandled) return;
+      if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
+      final cleanFinalText = finalText.trim();
+      if (cleanFinalText.isEmpty) return;
+      finalResultHandled = true;
+
+      _isListening = false;
+      _isProcessing = false;
+      _carriedVoiceText = '';
+      _resumeWithCarry = false;
+      Map<String, dynamic>? candidate;
+      if (_voiceAwaitingField != null && _voiceDraftAction != null) {
+        candidate = _applyFollowUpAnswer(
+          draft: _voiceDraftAction!,
+          field: _voiceAwaitingField!,
+          answer: cleanFinalText,
+        );
+      } else {
+        candidate = _buildPendingVoiceAction(cleanFinalText);
+      }
+      final missingField = candidate == null ? null : _nextMissingField(candidate);
+      if (candidate != null && missingField != null) {
+        _voiceDraftAction = candidate;
+        _voiceAwaitingField = missingField;
+        _pendingVoiceAction = null;
+        final prompt = _friendlyPromptForField(missingField, isEnglish);
+        _voiceErrorMessage = prompt;
+        notifyListeners();
+        await _voiceService.speak(
+          prompt,
+          speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+        );
+        _rememberVoicePrompt(prompt);
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
+        await startListening();
+        return;
+      }
+
+      _voiceDraftAction = null;
+      _voiceAwaitingField = null;
+      _pendingVoiceAction = candidate;
+      final validation = _pendingVoiceAction == null
+          ? {'isValid': false, 'message': ''}
+          : validateVoiceAction(_pendingVoiceAction!);
+      notifyListeners();
+      if (_pendingVoiceAction != null && validation['isValid'] == true) {
+        final prompt = isEnglish
+            ? 'Data is ready and added to draft. Please confirm on screen.'
+            : 'Data sudah berhasil ditambahkan, silakan konfirmasi di layar.';
+        await _voiceService.speak(
+          prompt,
+          speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+        );
+        _rememberVoicePrompt(prompt);
+      } else if (_pendingVoiceAction != null) {
+        final msg = (validation['message'] as String?)?.trim();
+        final prompt = msg?.isNotEmpty == true
+            ? msg!
+            : (isEnglish
+                ? 'Please complete missing information.'
+                : 'Lengkapi informasi yang kurang ya.');
+        await _voiceService.speak(
+          prompt,
+          speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+        );
+        _rememberVoicePrompt(prompt);
+      } else {
+        final prompt = isEnglish
+            ? 'I heard: $cleanFinalText. Command not recognized yet.'
+            : 'Saya dengar: $cleanFinalText. Perintah belum dikenali.';
+        await _voiceService.speak(
+          prompt,
+          speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
+        );
+        _rememberVoicePrompt(prompt);
+      }
+    }
+
     final isReady = await _voiceService.startListening(
       localeId: localeId,
       onStatus: (status) {
@@ -422,7 +504,17 @@ class AppProvider extends ChangeNotifier {
               notifyListeners();
               return;
             }
-            if (_isProcessing) return;
+            if (_isProcessing) {
+              final pendingText = _lastIntent.trim();
+              if (pendingText.isNotEmpty) {
+                unawaited(handleFinalVoiceText(pendingText));
+              } else {
+                _isListening = false;
+                _isProcessing = false;
+                notifyListeners();
+              }
+              return;
+            }
             if (_pendingVoiceAction != null) return;
             final hasFollowUpDraft =
                 _voiceAwaitingField != null && _voiceDraftAction != null;
@@ -482,78 +574,7 @@ class AppProvider extends ChangeNotifier {
           await startListening();
           return;
         }
-        _isListening = false;
-        _isProcessing = false;
-        final finalText = mergedText;
-        _carriedVoiceText = '';
-        _resumeWithCarry = false;
-        Map<String, dynamic>? candidate;
-        if (_voiceAwaitingField != null && _voiceDraftAction != null) {
-          candidate = _applyFollowUpAnswer(
-            draft: _voiceDraftAction!,
-            field: _voiceAwaitingField!,
-            answer: finalText,
-          );
-        } else {
-          candidate = _buildPendingVoiceAction(finalText);
-        }
-        final missingField = candidate == null ? null : _nextMissingField(candidate);
-        if (candidate != null && missingField != null) {
-          _voiceDraftAction = candidate;
-          _voiceAwaitingField = missingField;
-          _pendingVoiceAction = null;
-          final prompt = _friendlyPromptForField(missingField, isEnglish);
-          _voiceErrorMessage = prompt;
-          notifyListeners();
-          await _voiceService.speak(
-            prompt,
-            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
-          );
-          _rememberVoicePrompt(prompt);
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
-          await startListening();
-          return;
-        }
-
-        _voiceDraftAction = null;
-        _voiceAwaitingField = null;
-        _pendingVoiceAction = candidate;
-        final validation = _pendingVoiceAction == null
-            ? {'isValid': false, 'message': ''}
-            : validateVoiceAction(_pendingVoiceAction!);
-        notifyListeners();
-        if (_pendingVoiceAction != null && validation['isValid'] == true) {
-          final prompt = isEnglish
-              ? 'Data is ready and added to draft. Please confirm on screen.'
-              : 'Data sudah berhasil ditambahkan, silakan konfirmasi di layar.';
-          await _voiceService.speak(
-            prompt,
-            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
-          );
-          _rememberVoicePrompt(prompt);
-        } else if (_pendingVoiceAction != null) {
-          final msg = (validation['message'] as String?)?.trim();
-          final prompt = msg?.isNotEmpty == true
-              ? msg!
-              : (isEnglish
-                  ? 'Please complete missing information.'
-                  : 'Lengkapi informasi yang kurang ya.');
-          await _voiceService.speak(
-            prompt,
-            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
-          );
-          _rememberVoicePrompt(prompt);
-        } else {
-          final prompt = isEnglish
-              ? 'I heard: $finalText. Command not recognized yet.'
-              : 'Saya dengar: $finalText. Perintah belum dikenali.';
-          await _voiceService.speak(
-            prompt,
-            speed: (_voiceSpeed / 2).clamp(0.3, 1.0),
-          );
-          _rememberVoicePrompt(prompt);
-        }
+        await handleFinalVoiceText(mergedText);
       },
     );
 
@@ -641,6 +662,11 @@ class AppProvider extends ChangeNotifier {
   Future<void> stopListening() async {
     _voiceSessionCancelled = true;
     _voiceSessionId++;
+    _voiceDraftAction = null;
+    _voiceAwaitingField = null;
+    _pendingVoiceAction = null;
+    _voiceErrorMessage = '';
+    _lastIntent = '';
     _carriedVoiceText = '';
     _resumeWithCarry = false;
     _isRestartingVoiceFollowUp = false;

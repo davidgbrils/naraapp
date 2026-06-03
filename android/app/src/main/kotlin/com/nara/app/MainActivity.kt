@@ -142,6 +142,7 @@ class MainActivity : FlutterActivity() {
     val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(popupBroadcastPendingIntent(id))
     markNativeCompletedAlarm(id)
+    stopNativeAlarmService(id)
   }
 
   private fun popupPendingIntent(
@@ -231,6 +232,17 @@ class MainActivity : FlutterActivity() {
     if (ids.remove(id.toString())) {
       prefs.edit().putStringSet(completedAlarmIdsKey, ids).apply()
     }
+  }
+
+  private fun stopNativeAlarmService(id: Int) {
+    NativeAlarmSound.stop()
+    val stopIntent = Intent(this, AlarmForegroundService::class.java).apply {
+      action = AlarmForegroundService.ACTION_STOP
+      putExtra("reminder_id", id)
+    }
+    try {
+      startService(stopIntent)
+    } catch (_: Exception) {}
   }
 
   private fun openReminderSystemSettings(target: String) {

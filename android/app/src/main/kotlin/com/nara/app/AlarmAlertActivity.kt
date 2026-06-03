@@ -6,9 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.Ringtone
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -34,7 +31,6 @@ class AlarmAlertActivity : Activity() {
   private var mode: String = "Loud Alarm"
   private var title: String = "Reminder"
   private var body: String = "Ada pengingat baru untukmu."
-  private var ringtone: Ringtone? = null
   private var actionHandled: Boolean = false
   private val handler = Handler(Looper.getMainLooper())
   private val autoSnoozeRunnable = Runnable {
@@ -242,33 +238,11 @@ class AlarmAlertActivity : Activity() {
   }
 
   private fun startAlarmSound() {
-    try {
-      val soundUri = if (mode == "Fake Call") {
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-      } else {
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-      }
-      ringtone = RingtoneManager.getRingtone(this, soundUri)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        ringtone?.audioAttributes = AudioAttributes.Builder()
-          .setUsage(
-            if (mode == "Fake Call") AudioAttributes.USAGE_NOTIFICATION_RINGTONE
-            else AudioAttributes.USAGE_ALARM
-          )
-          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-          .build()
-      }
-      ringtone?.play()
-      Log.i(TAG, "alarm sound started mode=$mode")
-    } catch (e: Exception) {
-      Log.e(TAG, "failed to start alarm sound", e)
-      ringtone = null
-    }
+    NativeAlarmSound.start(this, mode)
   }
 
   private fun stopAlarmSound() {
-    ringtone?.stop()
-    ringtone = null
+    NativeAlarmSound.stop()
   }
 
   private fun handleComplete() {

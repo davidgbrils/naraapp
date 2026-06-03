@@ -12,9 +12,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import android.media.AudioAttributes
-import android.media.Ringtone
-import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 
 class AlarmForegroundService : Service() {
@@ -38,7 +35,6 @@ class AlarmForegroundService : Service() {
   private var activeTitle: String = "Reminder"
   private var activeBody: String = "Ada pengingat baru untukmu."
   private var actionHandled: Boolean = false
-  private var ringtone: Ringtone? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -47,8 +43,14 @@ class AlarmForegroundService : Service() {
     Log.i(TAG, "onStartCommand action=$action startId=$startId")
     if (action == ACTION_STOP) {
       Log.i(TAG, "stop requested")
+      val reminderId = intent?.getIntExtra("reminder_id", -1) ?: -1
       actionHandled = true
       clearAutoSnooze()
+      if (reminderId >= 0) {
+        markNativeCompletedAlarm(reminderId)
+        cancelNativePopupAlarm(reminderId)
+        clearNotification(reminderId)
+      }
       stopSelfSafely()
       return START_NOT_STICKY
     }
@@ -200,27 +202,11 @@ class AlarmForegroundService : Service() {
   }
 
   private fun startAlarmSound() {
-    try {
-      val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-      ringtone = RingtoneManager.getRingtone(this, soundUri)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        ringtone?.audioAttributes = AudioAttributes.Builder()
-          .setUsage(AudioAttributes.USAGE_ALARM)
-          .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-          .build()
-      }
-      ringtone?.play()
-      Log.i(TAG, "alarm ringtone started")
-    } catch (e: Exception) {
-      Log.e(TAG, "failed to start ringtone", e)
-    }
+    NativeAlarmSound.start(this, activeMode)
   }
 
   private fun stopAlarmSound() {
-    try {
-      ringtone?.stop()
-      ringtone = null
-    } catch (_: Exception) {}
+    NativeAlarmSound.stop()
   }
 
   private fun scheduleNativeSnooze(

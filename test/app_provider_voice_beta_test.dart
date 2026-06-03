@@ -205,5 +205,49 @@ void main() {
       expect(provider.pendingVoiceAction?['title'], 'Makan');
       expect(provider.pendingVoiceAction?['amount'], 10000);
     });
+
+    test('follow-up answer is processed when speech ends after partial result', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fakeVoice = _FakeVoiceService();
+      final provider = AppProvider(voiceService: fakeVoice);
+
+      await provider.setVoiceBetaEnabled(true);
+      await provider.startListening();
+
+      fakeVoice.emitResult('catat', isFinal: true);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(fakeVoice.startListeningCalls, 2);
+      expect(provider.isListening, true);
+
+      fakeVoice.emitResult('makan 10 ribu', isFinal: false);
+      fakeVoice.emitStatus('done');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(provider.pendingVoiceAction, isNotNull);
+      expect(provider.pendingVoiceAction?['type'], 'expense');
+      expect(provider.pendingVoiceAction?['amount'], 10000);
+      expect(provider.isListening, false);
+    });
+
+    test('stopListening clears follow-up draft so next session starts fresh', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fakeVoice = _FakeVoiceService();
+      final provider = AppProvider(voiceService: fakeVoice);
+
+      await provider.setVoiceBetaEnabled(true);
+      await provider.startListening();
+
+      fakeVoice.emitResult('catat', isFinal: true);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(provider.hasVoiceFollowUpDraft, true);
+
+      await provider.stopListening();
+      expect(provider.hasVoiceFollowUpDraft, false);
+      expect(provider.pendingVoiceAction, isNull);
+
+      await provider.startListening(greet: true);
+      expect(fakeVoice.lastSpokenText, 'Halo Budi, ada yang bisa NARA bantu?');
+      expect(provider.isListening, true);
+    });
   });
 }
