@@ -66,6 +66,7 @@ class AppProvider extends ChangeNotifier {
   static const String _voiceConfirmEnabledKey = 'voice_confirm_enabled';
   static const String _voiceGreetingEnabledKey = 'voice_greeting_enabled';
   static const String _wakeWordEnabledKey = 'wake_word_enabled';
+  static const String _wakeWordPhraseKey = 'wake_word_phrase';
   static const String _startupPermissionsCompleteKey = 'startup_permissions_complete';
   static const String _profileImagePathKey = 'profile_image_path';
   static const String _reminderNotifsEnabledKey = 'notif_reminder_enabled';
@@ -100,6 +101,7 @@ class AppProvider extends ChangeNotifier {
   bool _voiceConfirmEnabled = true;
   bool _voiceGreetingEnabled = true;
   bool _wakeWordEnabled = false;
+  String _wakeWordPhrase = 'hey nara';
   bool _startupPermissionsComplete = false;
   String _profileImagePath = '';
   bool _reminderNotificationsEnabled = true;
@@ -125,6 +127,7 @@ class AppProvider extends ChangeNotifier {
   bool get voiceConfirmEnabled => _voiceConfirmEnabled;
   bool get voiceGreetingEnabled => _voiceGreetingEnabled;
   bool get wakeWordEnabled => _wakeWordEnabled;
+  String get wakeWordPhrase => _wakeWordPhrase;
   bool get startupPermissionsComplete => _startupPermissionsComplete;
   String get profileImagePath => _profileImagePath;
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
@@ -273,7 +276,7 @@ class AppProvider extends ChangeNotifier {
     final nextValue = value && _voiceBetaEnabled;
     final prefs = await SharedPreferences.getInstance();
     if (nextValue) {
-      final started = await WakeWordService.start();
+      final started = await WakeWordService.start(wakePhrase: _wakeWordPhrase);
       _wakeWordEnabled = started;
       await prefs.setBool(_wakeWordEnabledKey, _wakeWordEnabled);
       if (!started) {
@@ -289,6 +292,29 @@ class AppProvider extends ChangeNotifier {
       await prefs.setBool(_wakeWordEnabledKey, false);
     }
     notifyListeners();
+  }
+
+  Future<void> setWakeWordPhrase(String value) async {
+    final normalized = _normalizeWakeWordPhrase(value);
+    _wakeWordPhrase = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_wakeWordPhraseKey, normalized);
+    if (_wakeWordEnabled && _voiceBetaEnabled && !_isListening && !_isProcessing) {
+      await WakeWordService.stop();
+      await WakeWordService.start(wakePhrase: _wakeWordPhrase);
+    }
+    notifyListeners();
+  }
+
+  String _normalizeWakeWordPhrase(String value) {
+    final cleaned = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final words = cleaned.split(' ').where((word) => word.isNotEmpty).toList();
+    if (words.length < 2) return 'hey nara';
+    return words.take(4).join(' ');
   }
 
   Future<void> completeStartupPermissions() async {
@@ -633,7 +659,7 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> _restartWakeWordIfIdle() async {
     if (!_wakeWordEnabled || !_voiceBetaEnabled || _isListening || _isProcessing) return;
-    await WakeWordService.start();
+    await WakeWordService.start(wakePhrase: _wakeWordPhrase);
   }
 
   void _rememberVoicePrompt(String text) {
@@ -2021,6 +2047,7 @@ class AppProvider extends ChangeNotifier {
     final debt = _debts[index];
     final totalAmount = (debt['amount'] as num?)?.toInt() ?? 0;
     final currentPaidAmount = (debt['paidAmount'] as num?)?.toInt() ?? 0;
+    if (totalAmount <= 0 || currentPaidAmount >= totalAmount) return;
     final nextPaidAmount = (currentPaidAmount + paymentAmount).clamp(0, totalAmount);
     final appliedPayment = nextPaidAmount - currentPaidAmount;
 
@@ -2557,7 +2584,7 @@ class AppProvider extends ChangeNotifier {
       await _handleWakeWordDetected();
     }
     if (_wakeWordEnabled && _voiceBetaEnabled && !_isListening && !_isProcessing) {
-      await WakeWordService.start();
+      await WakeWordService.start(wakePhrase: _wakeWordPhrase);
     }
   }
 
@@ -3037,6 +3064,7 @@ class AppProvider extends ChangeNotifier {
       _voiceConfirmEnabled = prefs.getBool(_voiceConfirmEnabledKey) ?? true;
       _voiceGreetingEnabled = prefs.getBool(_voiceGreetingEnabledKey) ?? true;
       _wakeWordEnabled = (prefs.getBool(_wakeWordEnabledKey) ?? false) && _voiceBetaEnabled;
+      _wakeWordPhrase = _normalizeWakeWordPhrase(prefs.getString(_wakeWordPhraseKey) ?? _wakeWordPhrase);
       _startupPermissionsComplete = prefs.getBool(_startupPermissionsCompleteKey) ?? false;
       _profileImagePath = prefs.getString(_profileImagePathKey) ?? '';
       _reminderNotificationsEnabled = prefs.getBool(_reminderNotifsEnabledKey) ?? true;

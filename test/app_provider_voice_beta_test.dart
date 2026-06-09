@@ -136,6 +136,21 @@ void main() {
       expect(calls.any((call) => call.method == 'stopWakeWordService'), true);
     });
 
+    test('setWakeWordPhrase persists and falls back to default for unsafe phrase', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AppProvider();
+
+      await provider.setWakeWordPhrase('halo nara');
+      expect(provider.wakeWordPhrase, 'halo nara');
+
+      final reloaded = AppProvider();
+      await reloaded.loadAppData();
+      expect(reloaded.wakeWordPhrase, 'halo nara');
+
+      await provider.setWakeWordPhrase('nara');
+      expect(provider.wakeWordPhrase, 'hey nara');
+    });
+
     test('disabling Voice Beta stops Wake Word Beta', () async {
       SharedPreferences.setMockInitialValues({});
       final calls = <MethodCall>[];

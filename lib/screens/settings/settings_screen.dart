@@ -107,6 +107,57 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _showWakeWordPhraseDialog(BuildContext context, AppProvider provider) async {
+    final controller = TextEditingController(text: provider.wakeWordPhrase);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(I18n.t(context, 'wake_word_phrase'), style: NaraTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(I18n.t(context, 'wake_word_phrase_desc'), style: NaraTextStyles.body),
+            const SizedBox(height: NaraSpacing.md),
+            TextField(
+              controller: controller,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                hintText: 'hey nara',
+                filled: true,
+                fillColor: NaraColors.surfaceCard,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(NaraRadius.lg),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(I18n.t(context, 'cancel'), style: NaraTextStyles.label),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await provider.setWakeWordPhrase(controller.text);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (context.mounted) {
+                showAppSnackBar(
+                  context,
+                  content: Text(I18n.t(context, 'wake_word_phrase_saved')),
+                );
+              }
+            },
+            child: Text(I18n.t(context, 'save'), style: NaraTextStyles.label),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+  }
+
   Future<void> _showReminderHealthDialog(BuildContext context) async {
     final isEnglish = Localizations.localeOf(context).languageCode == 'en';
     final service = NotificationService();
@@ -782,7 +833,7 @@ class SettingsScreen extends StatelessWidget {
                   _SettingsItem(
                     icon: Icons.hearing_rounded,
                     title: I18n.t(context, 'wake_word_beta'),
-                    subtitle: I18n.t(context, 'wake_word_beta_subtitle'),
+                    subtitle: '${I18n.t(context, 'wake_word_beta_subtitle')} • ${provider.wakeWordPhrase}',
                     trailing: Switch(
                       value: provider.wakeWordEnabled,
                       onChanged: provider.voiceBetaEnabled
@@ -790,6 +841,15 @@ class SettingsScreen extends StatelessWidget {
                           : null,
                       activeThumbColor: NaraColors.primary,
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
+                    icon: Icons.edit_rounded,
+                    title: I18n.t(context, 'wake_word_phrase'),
+                    subtitle: provider.wakeWordPhrase,
+                    onTap: provider.voiceBetaEnabled
+                        ? () => _showWakeWordPhraseDialog(context, provider)
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   _SettingsItem(

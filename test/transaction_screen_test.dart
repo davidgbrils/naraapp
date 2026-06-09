@@ -81,6 +81,24 @@ void main() {
       expect(provider.debts.first['status'], 'lunas');
     });
 
+    test('updateDebtPayment ignores payments after debt is paid', () {
+      final provider = AppProvider();
+
+      provider.addDebt({
+        'title': 'Utang Test',
+        'amount': 100000,
+        'type': 'utang',
+        'date': 'Hari ini',
+      });
+
+      provider.updateDebtPayment(0, 100000);
+      provider.updateDebtPayment(0, 50000);
+
+      expect(provider.debts.first['paidAmount'], 100000);
+      expect(provider.debts.first['status'], 'lunas');
+      expect((provider.debts.first['paymentHistory'] as List).length, 1);
+    });
+
     test('markDebtAsPaid sets status to lunas', () {
       final provider = AppProvider();
       

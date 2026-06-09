@@ -113,7 +113,8 @@ class MainActivity : FlutterActivity() {
       ?.setMethodCallHandler { call, result ->
         when (call.method) {
           "startWakeWordService" -> {
-            result.success(startWakeWordService())
+            val wakePhrase = call.argument<String>("wakePhrase") ?: "hey nara"
+            result.success(startWakeWordService(wakePhrase))
           }
           "stopWakeWordService" -> {
             result.success(stopWakeWordService())
@@ -309,9 +310,10 @@ class MainActivity : FlutterActivity() {
     )
   }
 
-  private fun startWakeWordService(): Boolean {
+  private fun startWakeWordService(wakePhrase: String): Boolean {
     val intent = Intent(this, WakeWordForegroundService::class.java).apply {
       action = WakeWordForegroundService.ACTION_START
+      putExtra("wake_phrase", wakePhrase)
     }
     return try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -13,9 +13,13 @@ class WakeWordService {
     });
   }
 
-  static Future<bool> start() async {
+  static Future<bool> start({String wakePhrase = 'hey nara'}) async {
     try {
-      return await _channel.invokeMethod<bool>('startWakeWordService') ?? false;
+      return await _channel.invokeMethod<bool>(
+            'startWakeWordService',
+            {'wakePhrase': wakePhrase},
+          ) ??
+          false;
     } on MissingPluginException {
       // Unit/widget tests do not load the Android wake-word channel.
       return false;

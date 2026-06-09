@@ -268,7 +268,6 @@ class _HomeContentState extends State<_HomeContent> {
             ),
           ],
         ),
-        const VoiceOverlay(),
       ],
     );
   }

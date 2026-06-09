@@ -16,7 +16,8 @@ class VoiceWaveform extends StatefulWidget {
   State<VoiceWaveform> createState() => _VoiceWaveformState();
 }
 
-class _VoiceWaveformState extends State<VoiceWaveform> with TickerProviderStateMixin {
+class _VoiceWaveformState extends State<VoiceWaveform>
+    with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
 
   @override
@@ -28,7 +29,7 @@ class _VoiceWaveformState extends State<VoiceWaveform> with TickerProviderStateM
         duration: Duration(milliseconds: 600 + (index * 100)),
       );
     });
-    
+
     if (widget.isAnimating) {
       _startAnimation();
     }
@@ -76,13 +77,13 @@ class _VoiceWaveformState extends State<VoiceWaveform> with TickerProviderStateM
           return AnimatedBuilder(
             animation: _controllers[index],
             builder: (context, child) {
-              double height = widget.isAnimating 
-                ? 8 + (_controllers[index].value * 16)
-                : 8.0;
-              double opacity = widget.isAnimating 
-                ? 0.5 + (_controllers[index].value * 0.5)
-                : 0.6;
-              
+              double height = widget.isAnimating
+                  ? 8 + (_controllers[index].value * 16)
+                  : 8.0;
+              double opacity = widget.isAnimating
+                  ? 0.5 + (_controllers[index].value * 0.5)
+                  : 0.6;
+
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 width: 6,
@@ -114,67 +115,100 @@ class VoiceOverlay extends StatelessWidget {
         return Positioned.fill(
           child: GestureDetector(
             onTap: () => provider.stopListening(),
-            child: Container(
-              color: NaraColors.background.withValues(alpha: 0.95),
-              child: SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Status text
-                    Text(
-                      provider.isListening ? I18n.t(context, 'listening') : I18n.t(context, 'processing'),
-                      style: NaraTextStyles.h2,
-                    ),
-                    const SizedBox(height: NaraSpacing.sm),
-                    Text(
-                      provider.isListening 
-                        ? I18n.t(context, 'say_something_to_nara')
-                        : I18n.t(context, 'understanding_request'),
-                      style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
-                    ),
-                    if (provider.voiceErrorMessage.isNotEmpty) ...[
-                      const SizedBox(height: NaraSpacing.sm),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                color: NaraColors.background.withValues(alpha: 0.95),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Status text
                       Text(
-                        provider.voiceErrorMessage,
-                        style: NaraTextStyles.caption.copyWith(color: NaraColors.danger),
-                        textAlign: TextAlign.center,
+                        provider.isListening
+                            ? I18n.t(context, 'listening')
+                            : I18n.t(context, 'processing'),
+                        style: NaraTextStyles.h2.copyWith(
+                          decoration: TextDecoration.none,
+                        ),
                       ),
-                    ] else if (provider.lastIntent.trim().isNotEmpty) ...[
                       const SizedBox(height: NaraSpacing.sm),
                       Text(
-                        '"${provider.lastIntent.trim()}"',
-                        style: NaraTextStyles.caption.copyWith(color: NaraColors.textSecondary),
-                        textAlign: TextAlign.center,
+                        provider.isListening
+                            ? I18n.t(context, 'say_something_to_nara')
+                            : I18n.t(context, 'understanding_request'),
+                        style: NaraTextStyles.body.copyWith(
+                          color: NaraColors.textSecondary,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      if (provider.voiceErrorMessage.isNotEmpty) ...[
+                        const SizedBox(height: NaraSpacing.sm),
+                        Text(
+                          provider.voiceErrorMessage,
+                          style: NaraTextStyles.caption.copyWith(
+                            color: NaraColors.danger,
+                            decoration: TextDecoration.none,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ] else if (provider.lastIntent.trim().isNotEmpty) ...[
+                        const SizedBox(height: NaraSpacing.sm),
+                        Text(
+                          '"${provider.lastIntent.trim()}"',
+                          style: NaraTextStyles.caption.copyWith(
+                            color: NaraColors.textSecondary,
+                            decoration: TextDecoration.none,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      const SizedBox(height: NaraSpacing.xxl),
+
+                      // Voice visualization
+                      VoiceWaveform(isAnimating: provider.isListening),
+
+                      const SizedBox(height: NaraSpacing.xxl),
+
+                      // Stop button
+                      GestureDetector(
+                        onTap: () => provider.stopListening(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: NaraSpacing.xl,
+                            vertical: NaraSpacing.md,
+                          ),
+                          decoration: BoxDecoration(
+                            color: NaraColors.danger.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(
+                              NaraRadius.pill,
+                            ),
+                            border: Border.all(
+                              color: NaraColors.danger.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.stop_rounded,
+                                color: NaraColors.danger,
+                                size: 20,
+                              ),
+                              const SizedBox(width: NaraSpacing.sm),
+                              Text(
+                                I18n.t(context, 'cancel'),
+                                style: NaraTextStyles.label.copyWith(
+                                  color: NaraColors.danger,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
-                    const SizedBox(height: NaraSpacing.xxl),
-                    
-                    // Voice visualization
-                    VoiceWaveform(isAnimating: provider.isListening),
-                    
-                    const SizedBox(height: NaraSpacing.xxl),
-                    
-                    // Stop button
-                    GestureDetector(
-                      onTap: () => provider.stopListening(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: NaraSpacing.xl, vertical: NaraSpacing.md),
-                        decoration: BoxDecoration(
-                          color: NaraColors.danger.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(NaraRadius.pill),
-                          border: Border.all(color: NaraColors.danger.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.stop_rounded, color: NaraColors.danger, size: 20),
-                            const SizedBox(width: NaraSpacing.sm),
-                            Text(I18n.t(context, 'cancel'), style: NaraTextStyles.label.copyWith(color: NaraColors.danger)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

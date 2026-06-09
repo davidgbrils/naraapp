@@ -551,19 +551,24 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           ],
         ),
       ),
-      onDismissed: (direction) async {
+      confirmDismiss: (direction) async {
         final markedReadText = I18n.t(context, 'notif_marked_read');
-        final removedText = I18n.t(context, 'notif_removed_from_feed');
         if (direction == DismissDirection.startToEnd) {
           _markAsRead(item.id);
-          showAppSnackBar(
-            context,
-            content: Text(markedReadText),
-          );
-          return;
+          if (context.mounted) {
+            showAppSnackBar(
+              context,
+              content: Text(markedReadText),
+            );
+          }
+          return false;
         }
+        return true;
+      },
+      onDismissed: (direction) async {
+        final removedText = I18n.t(context, 'notif_removed_from_feed');
         await _hideNotification(item.id);
-        if (!mounted) return;
+        if (!context.mounted) return;
         showAppSnackBar(
           context,
           content: Text(removedText),

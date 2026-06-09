@@ -286,7 +286,11 @@ class I18n {
       'voice_greeting': 'Salam Awal Voice',
       'voice_greeting_subtitle': 'Putar salam saat sesi voice dimulai',
       'wake_word_beta': 'Wake Word Beta',
-      'wake_word_beta_subtitle': 'Dengarkan "Hay NARA" saat aplikasi di latar belakang',
+      'wake_word_beta_subtitle':
+          'Ucapkan "Hay NARA", lalu langsung bicara kebutuhan kamu saat aplikasi di latar belakang',
+      'wake_word_phrase': 'Panggilan Wake Word',
+      'wake_word_phrase_desc': 'Gunakan minimal dua kata agar NARA tidak mudah aktif sendiri. Default: hey nara.',
+      'wake_word_phrase_saved': 'Panggilan wake word disimpan.',
       'voice_beta_off': 'Voice Beta nonaktif',
       'enable_voice_beta': 'Aktifkan Voice Beta',
       'voice_beta_tools_hint':
@@ -603,7 +607,11 @@ class I18n {
       'voice_greeting': 'Voice Greeting',
       'voice_greeting_subtitle': 'Play greeting when voice session starts',
       'wake_word_beta': 'Wake Word Beta',
-      'wake_word_beta_subtitle': 'Listen for "Hay NARA" while the app is in the background',
+      'wake_word_beta_subtitle':
+          'Say "Hay NARA", then speak your request while the app is in the background',
+      'wake_word_phrase': 'Wake Word Call',
+      'wake_word_phrase_desc': 'Use at least two words so NARA does not activate too easily. Default: hey nara.',
+      'wake_word_phrase_saved': 'Wake word call saved.',
       'voice_beta_off': 'Voice Beta is off',
       'enable_voice_beta': 'Enable Voice Beta',
       'voice_beta_tools_hint':

@@ -1192,6 +1192,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                                       provider: provider,
                                       debtId: debtId,
                                       remainingAmount: remainingAmount,
+                                      isDebtOwed: isDebtOwed,
                                     ),
                             color: NaraColors.surfaceCard,
                             textColor: NaraColors.primary,
@@ -1904,10 +1905,16 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required AppProvider provider,
     required int debtId,
     required int remainingAmount,
+    required bool isDebtOwed,
   }) {
     final isEnglish = provider.language == 'English';
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     final amountController = TextEditingController();
+
+    final remainingLabel = isDebtOwed
+        ? tr('Sisa utang yang dapat dibayar:', 'Remaining debt you can pay:')
+        : tr('Sisa piutang yang dapat diterima:', 'Remaining receivable you can receive:');
+    final remainingSemanticLabel = isDebtOwed ? tr('Sisa utang', 'Remaining debt') : tr('Sisa piutang', 'Remaining receivable');
 
     showDialog<void>(
       context: context,
@@ -1923,12 +1930,12 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      tr('Sisa utang yang dapat dibayar:', 'Remaining debt you can pay:'),
+                      remainingLabel,
                       style: NaraTextStyles.body.copyWith(color: NaraColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Semantics(
-                      label: tr('Sisa utang', 'Remaining debt'),
+                      label: remainingSemanticLabel,
                       child: Text(
                         'Rp ${_formatCurrency(remainingAmount)}',
                         style: NaraTextStyles.h2.copyWith(color: NaraColors.primary),
@@ -1963,6 +1970,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                         amountController.text,
                         remainingAmount,
                         isEnglish: isEnglish,
+                        isDebtOwed: isDebtOwed,
                       ),
                     ]
                   ],
@@ -1994,6 +2002,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                             provider: provider,
                             debtId: debtId,
                             paymentAmount: _parseAmountInput(amountController.text),
+                            isDebtOwed: isDebtOwed,
                           );
                         }
                       : null,
@@ -2029,6 +2038,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     String input,
     int remainingAmount, {
     required bool isEnglish,
+    required bool isDebtOwed,
   }) {
     final bodyStyle = NaraTextStyles.body;
     final amount = _parseAmountInput(input);
@@ -2056,8 +2066,8 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
           Expanded(
             child: Text(
               isEnglish
-                  ? 'Exceeds remaining debt by Rp ${_formatCurrency(amount - remainingAmount)}'
-                  : 'Melebihi sisa utang sebesar Rp ${_formatCurrency(amount - remainingAmount)}',
+                  ? 'Exceeds remaining ${isDebtOwed ? 'debt' : 'receivable'} by Rp ${_formatCurrency(amount - remainingAmount)}'
+                  : 'Melebihi sisa ${isDebtOwed ? 'utang' : 'piutang'} sebesar Rp ${_formatCurrency(amount - remainingAmount)}',
               style: bodyStyle.copyWith(color: NaraColors.danger),
             ),
           ),
@@ -2087,6 +2097,7 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
     required AppProvider provider,
     required int debtId,
     required int paymentAmount,
+    required bool isDebtOwed,
   }) {
     String tr(String idText, String enText) => _tr(context, provider, idText, enText);
     showDialog<void>(
@@ -2138,16 +2149,22 @@ class _TransactionScreenState extends State<TransactionScreen> with SingleTicker
                 }
                 if (!mounted || !context.mounted) return;
                 provider.updateDebtPaymentById(debtId, paymentAmount);
+                final successText = isDebtOwed
+                    ? tr(
+                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                        'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
+                      )
+                    : tr(
+                        'Penerimaan Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
+                        'Receipt Rp ${_formatCurrency(paymentAmount)} was saved successfully',
+                      );
                 showAppSnackBar(
                   context,
                   backgroundColor: NaraColors.primary,
                   content: Semantics(
                     label: tr('Pembayaran berhasil', 'Payment successful'),
                     child: Text(
-                      tr(
-                        'Pembayaran Rp ${_formatCurrency(paymentAmount)} berhasil tersimpan',
-                        'Payment Rp ${_formatCurrency(paymentAmount)} was saved successfully',
-                      ),
+                      successText,
                       style: NaraTextStyles.body,
                     ),
                   ),

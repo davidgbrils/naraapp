@@ -19,6 +19,7 @@ import 'screens/notifications/notification_center_screen.dart';
 import 'screens/report/report_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/history/history_screen.dart';
+import 'screens/voice_overlay/voice_overlay.dart';
 import 'providers/app_provider.dart';
 
 Route<dynamic> _buildRoute(RouteSettings settings, WidgetBuilder builder) {
@@ -113,6 +114,14 @@ class NaraApp extends StatelessWidget {
           theme: NaraTheme.lightTheme,
           darkTheme: NaraTheme.darkTheme,
           themeMode: provider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const VoiceOverlay(),
+              ],
+            );
+          },
           home: const SplashScreen(),
           onGenerateRoute: (settings) {
             if (settings.name == '/history') {
