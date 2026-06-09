@@ -41,7 +41,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         final appProvider = context.read<AppProvider>();
         Navigator.pushReplacementNamed(
           context,
-          appProvider.isOnboardingComplete ? '/home' : '/onboarding',
+          !appProvider.startupPermissionsComplete
+              ? '/startup-permissions'
+              : (appProvider.isOnboardingComplete ? '/home' : '/onboarding'),
         );
       }
     });

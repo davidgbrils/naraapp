@@ -780,6 +780,19 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   _SettingsItem(
+                    icon: Icons.hearing_rounded,
+                    title: I18n.t(context, 'wake_word_beta'),
+                    subtitle: I18n.t(context, 'wake_word_beta_subtitle'),
+                    trailing: Switch(
+                      value: provider.wakeWordEnabled,
+                      onChanged: provider.voiceBetaEnabled
+                          ? (value) => provider.setWakeWordEnabled(value)
+                          : null,
+                      activeThumbColor: NaraColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsItem(
                     icon: Icons.rule_rounded,
                     title: I18n.t(context, 'voice_confirm'),
                     subtitle: I18n.t(context, 'voice_confirm_subtitle'),

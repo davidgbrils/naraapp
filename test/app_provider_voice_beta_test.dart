@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nara/providers/app_provider.dart';
 import 'package:nara/services/voice_service.dart';
@@ -56,8 +57,14 @@ class _FakeVoiceService implements VoiceServiceContract {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const wakeWordChannel = MethodChannel('nara/wake_word');
 
   group('AppProvider voice beta toggle', () {
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(wakeWordChannel, null);
+    });
+
     test('setVoiceBetaEnabled persists after loadAppData', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = AppProvider();
@@ -104,6 +111,83 @@ void main() {
       final reloaded = AppProvider();
       await reloaded.loadAppData();
       expect(reloaded.voiceConfirmEnabled, false);
+    });
+
+    test('setWakeWordEnabled persists and calls native start stop', () async {
+      SharedPreferences.setMockInitialValues({});
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(wakeWordChannel, (call) async {
+        calls.add(call);
+        return true;
+      });
+      final provider = AppProvider();
+
+      await provider.setWakeWordEnabled(true);
+      expect(provider.wakeWordEnabled, true);
+      expect(calls.any((call) => call.method == 'startWakeWordService'), true);
+
+      final reloaded = AppProvider();
+      await reloaded.loadAppData();
+      expect(reloaded.wakeWordEnabled, true);
+
+      await provider.setWakeWordEnabled(false);
+      expect(provider.wakeWordEnabled, false);
+      expect(calls.any((call) => call.method == 'stopWakeWordService'), true);
+    });
+
+    test('disabling Voice Beta stops Wake Word Beta', () async {
+      SharedPreferences.setMockInitialValues({});
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(wakeWordChannel, (call) async {
+        calls.add(call);
+        return true;
+      });
+      final provider = AppProvider();
+
+      await provider.setWakeWordEnabled(true);
+      await provider.setVoiceBetaEnabled(false);
+
+      expect(provider.voiceBetaEnabled, false);
+      expect(provider.wakeWordEnabled, false);
+      expect(calls.where((call) => call.method == 'stopWakeWordService').isNotEmpty, true);
+    });
+
+    test('setWakeWordEnabled stays off when native start fails', () async {
+      SharedPreferences.setMockInitialValues({});
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(wakeWordChannel, (call) async {
+        if (call.method == 'startWakeWordService') return false;
+        return true;
+      });
+      final provider = AppProvider();
+
+      await provider.setWakeWordEnabled(true);
+
+      expect(provider.wakeWordEnabled, false);
+      expect(provider.voiceErrorMessage, isNotEmpty);
+    });
+
+    test('initializeWakeWord consumes pending native detection and starts listening', () async {
+      SharedPreferences.setMockInitialValues({
+        'voice_beta_enabled': true,
+        'wake_word_enabled': true,
+      });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(wakeWordChannel, (call) async {
+        if (call.method == 'consumePendingWakeWord') return true;
+        return true;
+      });
+      final fakeVoice = _FakeVoiceService();
+      final provider = AppProvider(voiceService: fakeVoice);
+
+      await provider.loadAppData();
+      await provider.initializeWakeWord();
+
+      expect(provider.wakeWordEnabled, true);
+      expect(provider.isListening, true);
+      expect(fakeVoice.startListeningCalls, 1);
     });
 
     test('stopListening prevents session restart from delayed self-speech result', () async {

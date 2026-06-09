@@ -11,6 +11,7 @@ import '../core/i18n.dart';
 import '../services/notification_service.dart';
 import '../services/telemetry_service.dart';
 import '../services/voice_service.dart';
+import '../services/wake_word_service.dart';
 
 class AppProvider extends ChangeNotifier {
   static bool verboseLogs = false;
@@ -64,6 +65,8 @@ class AppProvider extends ChangeNotifier {
   static const String _voiceBetaEnabledKey = 'voice_beta_enabled';
   static const String _voiceConfirmEnabledKey = 'voice_confirm_enabled';
   static const String _voiceGreetingEnabledKey = 'voice_greeting_enabled';
+  static const String _wakeWordEnabledKey = 'wake_word_enabled';
+  static const String _startupPermissionsCompleteKey = 'startup_permissions_complete';
   static const String _profileImagePathKey = 'profile_image_path';
   static const String _reminderNotifsEnabledKey = 'notif_reminder_enabled';
   static const String _debtNotifsEnabledKey = 'notif_debt_enabled';
@@ -96,6 +99,8 @@ class AppProvider extends ChangeNotifier {
   bool _voiceBetaEnabled = true;
   bool _voiceConfirmEnabled = true;
   bool _voiceGreetingEnabled = true;
+  bool _wakeWordEnabled = false;
+  bool _startupPermissionsComplete = false;
   String _profileImagePath = '';
   bool _reminderNotificationsEnabled = true;
   bool _debtNotificationsEnabled = true;
@@ -119,6 +124,8 @@ class AppProvider extends ChangeNotifier {
   bool get voiceBetaEnabled => _voiceBetaEnabled;
   bool get voiceConfirmEnabled => _voiceConfirmEnabled;
   bool get voiceGreetingEnabled => _voiceGreetingEnabled;
+  bool get wakeWordEnabled => _wakeWordEnabled;
+  bool get startupPermissionsComplete => _startupPermissionsComplete;
   String get profileImagePath => _profileImagePath;
   bool get reminderNotificationsEnabled => _reminderNotificationsEnabled;
   bool get debtNotificationsEnabled => _debtNotificationsEnabled;
@@ -246,6 +253,7 @@ class AppProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_voiceBetaEnabledKey, _voiceBetaEnabled);
     if (!_voiceBetaEnabled) {
+      await setWakeWordEnabled(false);
       await stopListening();
       clearPendingVoiceAction();
     } else {
@@ -258,6 +266,35 @@ class AppProvider extends ChangeNotifier {
     _voiceConfirmEnabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_voiceConfirmEnabledKey, _voiceConfirmEnabled);
+    notifyListeners();
+  }
+
+  Future<void> setWakeWordEnabled(bool value) async {
+    final nextValue = value && _voiceBetaEnabled;
+    final prefs = await SharedPreferences.getInstance();
+    if (nextValue) {
+      final started = await WakeWordService.start();
+      _wakeWordEnabled = started;
+      await prefs.setBool(_wakeWordEnabledKey, _wakeWordEnabled);
+      if (!started) {
+        _voiceErrorMessage = _language == 'English'
+            ? 'Wake Word could not start. Check microphone permission and try again.'
+            : 'Wake Word belum bisa aktif. Periksa izin mikrofon lalu coba lagi.';
+      } else {
+        _voiceErrorMessage = '';
+      }
+    } else {
+      await WakeWordService.stop();
+      _wakeWordEnabled = false;
+      await prefs.setBool(_wakeWordEnabledKey, false);
+    }
+    notifyListeners();
+  }
+
+  Future<void> completeStartupPermissions() async {
+    _startupPermissionsComplete = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_startupPermissionsCompleteKey, true);
     notifyListeners();
   }
 
@@ -489,6 +526,7 @@ class AppProvider extends ChangeNotifier {
         );
         _rememberVoicePrompt(prompt);
       }
+      await _restartWakeWordIfIdle();
     }
 
     final isReady = await _voiceService.startListening(
@@ -512,6 +550,7 @@ class AppProvider extends ChangeNotifier {
                 _isListening = false;
                 _isProcessing = false;
                 notifyListeners();
+                unawaited(_restartWakeWordIfIdle());
               }
               return;
             }
@@ -539,6 +578,7 @@ class AppProvider extends ChangeNotifier {
             _isListening = false;
             _isProcessing = false;
             notifyListeners();
+            unawaited(_restartWakeWordIfIdle());
           });
         }
       },
@@ -548,6 +588,7 @@ class AppProvider extends ChangeNotifier {
         _isListening = false;
         _isProcessing = false;
         notifyListeners();
+        unawaited(_restartWakeWordIfIdle());
       },
       onResult: (recognizedWords, isFinal) async {
         if (_voiceSessionCancelled || sessionId != _voiceSessionId) return;
@@ -587,6 +628,12 @@ class AppProvider extends ChangeNotifier {
     _isProcessing = false;
     _isRestartingVoiceFollowUp = false;
     notifyListeners();
+    await _restartWakeWordIfIdle();
+  }
+
+  Future<void> _restartWakeWordIfIdle() async {
+    if (!_wakeWordEnabled || !_voiceBetaEnabled || _isListening || _isProcessing) return;
+    await WakeWordService.start();
   }
 
   void _rememberVoicePrompt(String text) {
@@ -674,6 +721,7 @@ class AppProvider extends ChangeNotifier {
     _isListening = false;
     _isProcessing = false;
     notifyListeners();
+    await _restartWakeWordIfIdle();
   }
   
   void setProcessing(bool value) {
@@ -2503,6 +2551,25 @@ class AppProvider extends ChangeNotifier {
     _startReminderFallbackWatcher();
   }
 
+  Future<void> initializeWakeWord() async {
+    WakeWordService.registerWakeWordHandler(_handleWakeWordDetected);
+    if (await WakeWordService.consumePendingDetection()) {
+      await _handleWakeWordDetected();
+    }
+    if (_wakeWordEnabled && _voiceBetaEnabled && !_isListening && !_isProcessing) {
+      await WakeWordService.start();
+    }
+  }
+
+  Future<void> _handleWakeWordDetected() async {
+    if (!_wakeWordEnabled || !_voiceBetaEnabled) return;
+    if (_isListening || _isProcessing) return;
+    await WakeWordService.stop();
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    clearPendingVoiceAction();
+    await startListening(greet: true);
+  }
+
   void _startReminderFallbackWatcher() {
     _reminderFallbackTimer?.cancel();
     _reminderFallbackTimer = Timer.periodic(
@@ -2969,6 +3036,8 @@ class AppProvider extends ChangeNotifier {
       _voiceBetaEnabled = prefs.getBool(_voiceBetaEnabledKey) ?? true;
       _voiceConfirmEnabled = prefs.getBool(_voiceConfirmEnabledKey) ?? true;
       _voiceGreetingEnabled = prefs.getBool(_voiceGreetingEnabledKey) ?? true;
+      _wakeWordEnabled = (prefs.getBool(_wakeWordEnabledKey) ?? false) && _voiceBetaEnabled;
+      _startupPermissionsComplete = prefs.getBool(_startupPermissionsCompleteKey) ?? false;
       _profileImagePath = prefs.getString(_profileImagePathKey) ?? '';
       _reminderNotificationsEnabled = prefs.getBool(_reminderNotifsEnabledKey) ?? true;
       _debtNotificationsEnabled = prefs.getBool(_debtNotifsEnabledKey) ?? true;

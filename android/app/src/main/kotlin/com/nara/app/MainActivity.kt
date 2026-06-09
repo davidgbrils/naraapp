@@ -1,31 +1,45 @@
 package com.nara.app
 
+import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+  private val tag = "MainActivity"
   private val popupAlarmChannel = "nara/reminder_popup_alarm"
+  private val wakeWordChannelName = "nara/wake_word"
+  private val startupPermissionChannelName = "nara/startup_permissions"
+  private val startupPermissionRequestCode = 7101
   private val alarmStatePrefs = "nara_alarm_state"
   private val completedAlarmIdsKey = "completed_popup_alarm_ids"
   private var popupChannel: MethodChannel? = null
+  private var wakeWordChannel: MethodChannel? = null
+  private var startupPermissionChannel: MethodChannel? = null
   private var pendingPopupReminderId: Int? = null
   private var latestPopupReminderId: Int? = null
   private var pendingPopupAction: Map<String, Any?>? = null
+  private var pendingWakeWordDetected: Boolean = false
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
     popupChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, popupAlarmChannel)
+    wakeWordChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, wakeWordChannelName)
+    startupPermissionChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, startupPermissionChannelName)
     popupChannel
       ?.setMethodCallHandler { call, result ->
         when (call.method) {
@@ -95,20 +109,54 @@ class MainActivity : FlutterActivity() {
           else -> result.notImplemented()
         }
       }
+    wakeWordChannel
+      ?.setMethodCallHandler { call, result ->
+        when (call.method) {
+          "startWakeWordService" -> {
+            result.success(startWakeWordService())
+          }
+          "stopWakeWordService" -> {
+            result.success(stopWakeWordService())
+          }
+          "isWakeWordServiceRunning" -> {
+            result.success(WakeWordForegroundService.isRunning)
+          }
+          "consumePendingWakeWord" -> {
+            val pending = pendingWakeWordDetected
+            pendingWakeWordDetected = false
+            result.success(pending)
+          }
+          else -> result.notImplemented()
+        }
+      }
+    startupPermissionChannel
+      ?.setMethodCallHandler { call, result ->
+        when (call.method) {
+          "requestRuntimePermissions" -> {
+            requestStartupRuntimePermissions()
+            result.success(true)
+          }
+          else -> result.notImplemented()
+        }
+      }
     flushPendingPopupReminder()
     flushPendingPopupAction()
+    flushPendingWakeWord()
     relayPopupAlarmFromIntent(intent)
+    relayWakeWordFromIntent(intent)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     relayPopupAlarmFromIntent(intent)
+    relayWakeWordFromIntent(intent)
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
     relayPopupAlarmFromIntent(intent)
+    relayWakeWordFromIntent(intent)
   }
 
   private fun schedulePopupAlarm(
@@ -217,6 +265,80 @@ class MainActivity : FlutterActivity() {
     pendingPopupAction = null
   }
 
+  private fun relayWakeWordFromIntent(intent: Intent?) {
+    if (intent?.getBooleanExtra("from_wake_word", false) != true) return
+    pendingWakeWordDetected = true
+    val channel = wakeWordChannel
+    if (channel == null) {
+      return
+    }
+    channel.invokeMethod(
+      "onWakeWordDetected",
+      null,
+      object : MethodChannel.Result {
+        override fun success(result: Any?) {
+          pendingWakeWordDetected = false
+        }
+
+        override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+          Log.e(tag, "Failed to deliver wake word: $errorCode $errorMessage")
+        }
+
+        override fun notImplemented() {}
+      }
+    )
+  }
+
+  private fun flushPendingWakeWord() {
+    if (!pendingWakeWordDetected) return
+    val channel = wakeWordChannel ?: return
+    channel.invokeMethod(
+      "onWakeWordDetected",
+      null,
+      object : MethodChannel.Result {
+        override fun success(result: Any?) {
+          pendingWakeWordDetected = false
+        }
+
+        override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+          Log.e(tag, "Failed to flush wake word: $errorCode $errorMessage")
+        }
+
+        override fun notImplemented() {}
+      }
+    )
+  }
+
+  private fun startWakeWordService(): Boolean {
+    val intent = Intent(this, WakeWordForegroundService::class.java).apply {
+      action = WakeWordForegroundService.ACTION_START
+    }
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(intent)
+      } else {
+        startService(intent)
+      }
+      true
+    } catch (exception: Exception) {
+      Log.e(tag, "Failed to start wake word service", exception)
+      false
+    }
+  }
+
+  private fun stopWakeWordService(): Boolean {
+    val intent = Intent(this, WakeWordForegroundService::class.java).apply {
+      action = WakeWordForegroundService.ACTION_STOP
+    }
+    return try {
+      startService(intent)
+      true
+    } catch (exception: Exception) {
+      Log.e(tag, "Failed to stop wake word service", exception)
+      false
+    }
+  }
+
   private fun markNativeCompletedAlarm(id: Int) {
     val prefs = getSharedPreferences(alarmStatePrefs, Context.MODE_PRIVATE)
     val ids = prefs.getStringSet(completedAlarmIdsKey, emptySet())?.toMutableSet()
@@ -243,6 +365,21 @@ class MainActivity : FlutterActivity() {
     try {
       startService(stopIntent)
     } catch (_: Exception) {}
+  }
+
+  private fun requestStartupRuntimePermissions() {
+    val permissions = mutableListOf<String>()
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+      permissions.add(Manifest.permission.RECORD_AUDIO)
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+      ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) {
+      permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    if (permissions.isNotEmpty()) {
+      ActivityCompat.requestPermissions(this, permissions.toTypedArray(), startupPermissionRequestCode)
+    }
   }
 
   private fun openReminderSystemSettings(target: String) {

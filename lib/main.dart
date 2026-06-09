@@ -8,6 +8,7 @@ import 'services/telemetry_service.dart';
 import 'core/theme/nara_theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/startup_permissions_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/expense/add_expense_screen.dart';
 import 'screens/income/catat_pemasukan_screen.dart';
@@ -84,6 +85,9 @@ void main() async {
   await appProvider.rescheduleAllReminders();
   
   runApp(NaraApp(appProvider: appProvider));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    appProvider.initializeWakeWord();
+  });
 }
 
 class NaraApp extends StatelessWidget {
@@ -127,6 +131,7 @@ class NaraApp extends StatelessWidget {
 
             final routes = <String, WidgetBuilder>{
               '/onboarding': (_) => const OnboardingScreen(),
+              '/startup-permissions': (_) => const StartupPermissionsScreen(),
               '/home': (_) => const HomeScreen(),
               '/add-expense': (_) => const AddExpenseScreen(),
               '/add-income': (_) => const CatatPemasukanScreen(),

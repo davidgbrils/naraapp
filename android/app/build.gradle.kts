@@ -76,4 +76,5 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    implementation("com.alphacephei:vosk-android:0.3.75")
 }

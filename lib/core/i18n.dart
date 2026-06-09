@@ -244,6 +244,16 @@ class I18n {
       'skip': 'Lewati',
       'saving': 'Menyimpan...',
       'enter_nara': 'Masuk NARA',
+      'startup_permissions_title': 'Siapkan izin NARA',
+      'startup_permissions_desc':
+          'Agar voice, wake word, notifikasi, dan alarm berjalan mulus, aktifkan izin penting ini di awal.',
+      'startup_permission_microphone': 'Mikrofon',
+      'startup_permission_microphone_desc': 'Dipakai untuk Voice Beta dan Wake Word "Hay NARA".',
+      'startup_permission_notification': 'Notifikasi',
+      'startup_permission_notification_desc': 'Dipakai untuk reminder dan alarm supaya muncul tepat waktu.',
+      'startup_permission_alarm': 'Alarm tepat waktu',
+      'startup_permission_alarm_desc': 'Membantu reminder alarm tetap bunyi meski aplikasi di latar belakang.',
+      'allow_all_permissions': 'Izinkan Semua',
       'onboarding_title_0': 'Cukup Ngomong, Beres!',
       'onboarding_desc_0':
           'Catat utang, buat reminder, lacak pengeluaran, semua cukup dengan suara. Tanpa ribet, tanpa ketik.',
@@ -275,6 +285,8 @@ class I18n {
       'voice_confirm_subtitle': 'Minta konfirmasi sebelum simpan aksi voice',
       'voice_greeting': 'Salam Awal Voice',
       'voice_greeting_subtitle': 'Putar salam saat sesi voice dimulai',
+      'wake_word_beta': 'Wake Word Beta',
+      'wake_word_beta_subtitle': 'Dengarkan "Hay NARA" saat aplikasi di latar belakang',
       'voice_beta_off': 'Voice Beta nonaktif',
       'enable_voice_beta': 'Aktifkan Voice Beta',
       'voice_beta_tools_hint':
@@ -548,6 +560,16 @@ class I18n {
       'skip': 'Skip',
       'saving': 'Saving...',
       'enter_nara': 'Enter NARA',
+      'startup_permissions_title': 'Set up NARA permissions',
+      'startup_permissions_desc':
+          'Enable these essential permissions early so voice, wake word, notifications, and alarms work smoothly.',
+      'startup_permission_microphone': 'Microphone',
+      'startup_permission_microphone_desc': 'Used for Voice Beta and the "Hay NARA" wake word.',
+      'startup_permission_notification': 'Notifications',
+      'startup_permission_notification_desc': 'Used for reminders and alarms so they appear on time.',
+      'startup_permission_alarm': 'Exact alarms',
+      'startup_permission_alarm_desc': 'Helps alarm reminders ring even while the app is in the background.',
+      'allow_all_permissions': 'Allow All',
       'onboarding_title_0': 'Just Speak, Done!',
       'onboarding_desc_0':
           'Track debt, set reminders, and monitor expenses using only your voice. No hassle, no typing.',
@@ -580,6 +602,8 @@ class I18n {
       'voice_confirm_subtitle': 'Ask confirmation before saving voice actions',
       'voice_greeting': 'Voice Greeting',
       'voice_greeting_subtitle': 'Play greeting when voice session starts',
+      'wake_word_beta': 'Wake Word Beta',
+      'wake_word_beta_subtitle': 'Listen for "Hay NARA" while the app is in the background',
       'voice_beta_off': 'Voice Beta is off',
       'enable_voice_beta': 'Enable Voice Beta',
       'voice_beta_tools_hint':
